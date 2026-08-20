@@ -34,7 +34,9 @@ from reports import export as report_export
 
 
 # ---------------- bootstrap ----------------
-st.set_page_config(page_title="MIA", layout="wide", initial_sidebar_state="expanded")
+# initial_sidebar_state="auto" → expanded on desktop, collapsed on phones (so
+# the nav overlay doesn't cover the content on first load).
+st.set_page_config(page_title="MIA", layout="wide", initial_sidebar_state="auto")
 init_database()
 
 

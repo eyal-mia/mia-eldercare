@@ -446,6 +446,77 @@ h4 { font-size: 1.15rem !important; font-weight: 600 !important; }
   padding: 0.2rem 0.55rem; border-radius: 999px;
   font-size: 0.75rem; font-weight: 700; margin-right: 0.4rem;
 }
+
+/* ============ MOBILE / PHONE (≤ 768px) ============ */
+@media (max-width: 768px) {
+  /* tighter base type + spacing for small screens */
+  html, body, [class*="st-"] { font-size: 15px; line-height: 1.5; }
+  h1 { font-size: 1.5rem !important; }
+  h2 { font-size: 1.28rem !important; }
+  h3 { font-size: 1.12rem !important; }
+  h4 { font-size: 1.0rem !important; }
+
+  /* slimmer scrollbar on touch devices (18px is huge on a phone) */
+  ::-webkit-scrollbar { width: 9px !important; height: 9px !important; }
+  ::-webkit-scrollbar-thumb { border-width: 2px !important; }
+
+  /* main column: full width, minimal side padding */
+  [data-testid="stMainBlockContainer"] {
+    padding: 0.8rem 0.7rem 3rem !important;
+  }
+
+  /* stack multi-column rows vertically so nothing is squished */
+  [data-testid="stMain"] [data-testid="stHorizontalBlock"] {
+    flex-direction: column !important;
+  }
+  [data-testid="stMain"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+    width: 100% !important; flex: 1 1 100% !important; min-width: 0 !important;
+  }
+
+  /* brand logo smaller */
+  .brand-logo { padding: 0.7rem 0.8rem; }
+  .brand-logo .logo-emoji { font-size: 1.5rem; }
+  .brand-logo .logo-name { font-size: 1.1rem; }
+  .brand-logo .logo-tag { font-size: 0.66rem; }
+
+  /* header band + banners: less padding, smaller text */
+  .eldercare-header { padding: 1rem 1.1rem; border-radius: 14px; }
+  .eldercare-header h2 { font-size: 1.3rem; }
+  .eldercare-header .subtitle { font-size: 0.9rem; }
+  .org-banner { padding: 0.7rem 0.9rem; }
+  .org-banner-name { font-size: 1.15rem; }
+  .resident-banner { font-size: 1rem; padding: 0.5rem 0.8rem; }
+
+  /* cards: smaller radius + lighter shadow */
+  [data-testid="stMain"] [data-testid="stExpander"],
+  [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] {
+    border-radius: 12px !important;
+    box-shadow: 0 4px 14px rgba(15,23,42,0.07) !important;
+  }
+
+  /* buttons: comfortable, not oversized */
+  .stButton button, .stDownloadButton button, .stFormSubmitButton button {
+    font-size: 0.98rem !important;
+    padding: 0.55rem 0.9rem !important;
+    min-height: 2.6rem !important;
+  }
+
+  /* tabs shrink so more fit before wrapping */
+  .stTabs [data-baseweb="tab"] {
+    font-size: 0.85rem !important;
+    padding: 0.4rem 0.55rem !important;
+  }
+
+  /* metrics */
+  [data-testid="stMetric"] { padding: 0.6rem 0.8rem; }
+  [data-testid="stMetricValue"] { font-size: 1.4rem; }
+
+  /* dataframes/tables scroll horizontally rather than overflow the page */
+  [data-testid="stDataFrame"], [data-testid="stTable"] { overflow-x: auto !important; }
+
+  /* back-to-top: smaller and tucked into the corner */
+  .back-to-top-link { width: 44px; height: 44px; font-size: 1.3rem; bottom: 16px; }
+}
 </style>
 """
 
@@ -467,8 +538,12 @@ html { scroll-behavior: smooth; }
 /* Put the sidebar on the RIGHT (RTL-correct) by reversing ONLY the top-level
    app container's two sections. This is safe — unlike reversing every
    stHorizontalBlock, it touches just [sidebar, main], not inner columns, and
-   the CSS is injected at top level so it never unmounts with the sidebar. */
-[data-testid="stAppViewContainer"] { flex-direction: row-reverse; }
+   the CSS is injected at top level so it never unmounts with the sidebar.
+   DESKTOP ONLY: on phones the sidebar is a fixed overlay, so the flip would
+   fight the overlay and cover the content — leave the default there. */
+@media (min-width: 769px) {
+  [data-testid="stAppViewContainer"] { flex-direction: row-reverse; }
+}
 
 /* Inputs RTL. */
 .stTextInput input, .stTextArea textarea, .stNumberInput input,
