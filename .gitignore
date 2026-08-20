@@ -5,8 +5,9 @@ __pycache__/
 .venv/
 venv/
 
-# Local SQLite database — regenerated & self-seeded on startup
-data/*.db
+# The seeded demo DB IS committed so the hosted app loads instantly with data
+# (no heavy first-run seeding on the constrained free host). Backups/journals
+# stay ignored.
 data/*.db.bak
 *.db-journal
 

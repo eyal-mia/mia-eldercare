@@ -56,8 +56,41 @@ def _ensure_demo_seeded() -> None:
             seed_demo_elders.seed(verbose=False)
 
 
+def _ensure_plans_current() -> None:
+    """Keep the demo showing THIS week's plans without re-running the optimizer.
+
+    The repo ships a pre-seeded database (so the hosted app loads instantly with
+    no heavy first-run computation). Its plans are for one specific week; when
+    real time moves past that week, shift every plan forward by whole weeks so it
+    lands on the current Sun–Sat. This is a cheap SQL date update — day-of-week is
+    preserved because the shift is always a multiple of 7 days."""
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT MAX(plan_date) FROM daily_plans").fetchone()
+        maxd = row[0] if row else None
+        if not maxd:
+            return
+        today = dt.date.today()
+        cur_sun = today - dt.timedelta(days=(today.weekday() + 1) % 7)
+        seeded_last = dt.date.fromisoformat(maxd)
+        seeded_sun = seeded_last - dt.timedelta(
+            days=(seeded_last.weekday() + 1) % 7)
+        delta = (cur_sun - seeded_sun).days
+        if delta > 0 and delta % 7 == 0:
+            conn.execute(
+                "UPDATE daily_plans SET plan_date = date(plan_date, ?)",
+                (f"+{delta} days",),
+            )
+            conn.commit()
+    except Exception:
+        pass  # never block app load on this
+    finally:
+        conn.close()
+
+
 try:
     _ensure_demo_seeded()
+    _ensure_plans_current()
 except Exception as _seed_err:  # never let seeding block the app from loading
     st.warning(f"טעינת נתוני הדמו דילגה: {_seed_err}")
 
