@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Local SQLite database — regenerated & self-seeded on startup
+data/*.db
+data/*.db.bak
+*.db-journal
+
+# Logs & scratch
+mia_last_run.log
+mia_browser.log
+runlog*.txt
+st_o.txt
+st_e.txt
+.deps_installed
+
+# Runtime output (kept as empty dirs via .gitkeep)
+exports/*
+!exports/.gitkeep
+imports/*
+!imports/.gitkeep
+
+# Large local-only files (not needed to run the app)
+*.msix
+*.pdf
+
+# OS
+.DS_Store
+Thumbs.db
