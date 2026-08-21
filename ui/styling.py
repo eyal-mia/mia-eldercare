@@ -90,12 +90,17 @@ body { background: var(--canvas); }
   padding-bottom: 4rem !important;
 }
 
-/* Slim gradient brand strip across the very top */
-[data-testid="stHeader"] {
-  background: linear-gradient(90deg, var(--brand-dark), var(--brand), var(--accent)) !important;
-  height: 0.42rem !important;
-  min-height: 0.42rem !important;
-  box-shadow: 0 2px 12px rgba(79,70,229,0.35);
+/* Slim gradient brand strip across the very top — DESKTOP ONLY. On phones the
+   sidebar is collapsed and Streamlit puts the "open sidebar" control in this
+   header, so it must keep its normal height there (otherwise the control is
+   clipped and the nav can't be reopened). */
+@media (min-width: 769px) {
+  [data-testid="stHeader"] {
+    background: linear-gradient(90deg, var(--brand-dark), var(--brand), var(--accent)) !important;
+    height: 0.42rem !important;
+    min-height: 0.42rem !important;
+    box-shadow: 0 2px 12px rgba(79,70,229,0.35);
+  }
 }
 
 /* ---- SIDEBAR as a bold branded nav rail ---- */
