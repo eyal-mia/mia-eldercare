@@ -34,11 +34,11 @@ from reports import export as report_export
 
 
 # ---------------- bootstrap ----------------
-# "auto": expanded on desktop, collapsed on phones — so the sidebar never eats
-# the narrow mobile width and squeezes the content (which caused overlapping
-# text). On the pinned Streamlit 1.58 the collapsed sidebar keeps a visible
-# reopen (») control, so the nav stays reachable on mobile.
-st.set_page_config(page_title="MIA", layout="wide", initial_sidebar_state="auto")
+# "expanded": the ONLY state that reliably keeps the sidebar in the DOM inside
+# the Streamlit Cloud iframe (with "auto" the cloud drops the whole sidebar +
+# its reopen control, stranding the nav). On phones the mobile CSS below turns
+# it into a fixed right-side overlay so it never squeezes the content.
+st.set_page_config(page_title="MIA", layout="wide", initial_sidebar_state="expanded")
 init_database()
 
 

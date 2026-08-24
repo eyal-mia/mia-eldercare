@@ -549,6 +549,21 @@ h4 { font-size: 1.15rem !important; font-weight: 600 !important; }
     padding: 0.8rem 0.7rem 3rem !important;
   }
 
+  /* On phones the "expanded" sidebar becomes a fixed overlay on the RIGHT, so
+     it covers the content instead of squeezing it into a sliver (which caused
+     wrapped/overlapping text). Content stays full-width behind it; the sidebar's
+     ◀ button still collapses it off-screen. */
+  [data-testid="stSidebar"] {
+    position: fixed !important;
+    top: 0 !important; bottom: 0 !important;
+    right: 0 !important; left: auto !important;
+    width: min(86vw, 330px) !important; max-width: 86vw !important;
+    height: 100% !important;
+    z-index: 999990 !important;
+    box-shadow: -8px 0 34px rgba(15,23,42,0.30) !important;
+  }
+  [data-testid="stMain"] { width: 100% !important; }
+
   /* stack multi-column rows vertically so nothing is squished */
   [data-testid="stMain"] [data-testid="stHorizontalBlock"] {
     flex-direction: column !important;
