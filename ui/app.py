@@ -3017,6 +3017,26 @@ def view_accessibility(LANG: str):
 # DISPATCH
 # =====================================================================
 LANG = st.session_state.lang
+
+# track the previous view so the Back button can return to it
+_last_view = st.session_state.get("_last_view")
+if _last_view is not None and _last_view != st.session_state.view:
+    st.session_state.prev_view = _last_view
+st.session_state._last_view = st.session_state.view
+
+# --- top action toolbar: Back + Print (both hidden on the printout) ---
+_tb = st.columns([1.4, 1.4, 5.2])
+_prev = st.session_state.get("prev_view")
+if _tb[0].button("↩ " + t("back", LANG), key="tb_back", width="stretch",
+                 disabled=not _prev, help=t("back_help", LANG)):
+    st.session_state.view, st.session_state.prev_view = \
+        st.session_state.prev_view, st.session_state._last_view
+    st.rerun()
+if _tb[1].button("🖨️ " + t("print", LANG), key="tb_print", width="stretch",
+                 help=t("print_help", LANG)):
+    import streamlit.components.v1 as _components
+    _components.html("<script>window.parent.print();</script>", height=0)
+
 if st.session_state.view == "caregiver":
     view_caregiver(LANG)
 elif st.session_state.view == "manager":

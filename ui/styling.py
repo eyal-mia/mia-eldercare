@@ -531,6 +531,24 @@ h4 { font-size: 1.15rem !important; font-weight: 600 !important; }
   font-size: 0.75rem; font-weight: 700; margin-right: 0.4rem;
 }
 
+/* ============ PRINT ============ */
+@media print {
+  /* drop all the chrome — print just the content */
+  [data-testid="stSidebar"], [data-testid="stHeader"], [data-testid="stToolbar"],
+  .back-to-top-link, .skip-link, .stButton, .stDownloadButton, .stFormSubmitButton {
+    display: none !important;
+  }
+  [data-testid="stAppViewContainer"] { display: block !important; }
+  [data-testid="stMain"], [data-testid="stMainBlockContainer"] {
+    width: 100% !important; max-width: 100% !important;
+    padding: 0 !important; margin: 0 !important;
+  }
+  body, [data-testid="stApp"] { background: #fff !important; }
+  /* keep card/banner colours on the printout, drop heavy shadows */
+  * { box-shadow: none !important;
+      -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+}
+
 /* ============ MOBILE / PHONE (≤ 768px) ============ */
 @media (max-width: 768px) {
   /* tighter base type + spacing for small screens */
