@@ -181,6 +181,14 @@ body { background: var(--canvas); }
   font-size: 0.8em;
 }
 
+/* A COLLAPSED expander must fully hide its content. Some Streamlit/RTL
+   combinations leave the content rendered (display:block) and overflowing onto
+   the page, so text lands on top of the content below it. Force it hidden. */
+[data-testid="stMain"] details:not([open]) > [data-testid="stExpanderDetails"],
+[data-testid="stSidebar"] details:not([open]) > [data-testid="stExpanderDetails"] {
+  display: none !important;
+}
+
 /* ---- CARDS: bold, elevated, rounded ---- */
 [data-testid="stMain"] [data-testid="stExpander"],
 [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] {
@@ -611,15 +619,13 @@ html { scroll-behavior: smooth; }
 [data-testid="stSidebar"] { direction: rtl; text-align: right; }
 [data-testid="stSidebar"] * { text-align: right; }
 
-/* Put the sidebar on the RIGHT (RTL-correct) by reversing ONLY the top-level
-   app container's two sections. This is safe — unlike reversing every
-   stHorizontalBlock, it touches just [sidebar, main], not inner columns, and
-   the CSS is injected at top level so it never unmounts with the sidebar.
-   DESKTOP ONLY: on phones the sidebar is a fixed overlay, so the flip would
-   fight the overlay and cover the content — leave the default there. */
-@media (min-width: 769px) {
-  [data-testid="stAppViewContainer"] { flex-direction: row-reverse; }
-}
+/* Put the sidebar on the RIGHT (RTL-correct), on every width. Setting
+   `direction: rtl` on the top-level flex container makes its main axis start on
+   the right, so the sidebar (first child) lays out on the right — without the
+   brittle `flex-direction: row-reverse` flip, which inverted once the document
+   direction itself became rtl. Text direction of the inner content is already
+   handled on stMain/stSidebar below. */
+[data-testid="stAppViewContainer"] { direction: rtl; }
 
 /* Inputs RTL. */
 .stTextInput input, .stTextArea textarea, .stNumberInput input,

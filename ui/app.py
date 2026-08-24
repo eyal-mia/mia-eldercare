@@ -34,12 +34,11 @@ from reports import export as report_export
 
 
 # ---------------- bootstrap ----------------
-# initial_sidebar_state="expanded": keep the sidebar in the DOM and reachable on
-# EVERY device. On phones some Streamlit builds drop the collapsed sidebar (and
-# its reopen control) entirely, stranding the nav; "expanded" avoids that — the
-# sidebar opens as a normal overlay with a visible close (◀) button, and with the
-# RTL flip now desktop-only it slides in cleanly over the content.
-st.set_page_config(page_title="MIA", layout="wide", initial_sidebar_state="expanded")
+# "auto": expanded on desktop, collapsed on phones — so the sidebar never eats
+# the narrow mobile width and squeezes the content (which caused overlapping
+# text). On the pinned Streamlit 1.58 the collapsed sidebar keeps a visible
+# reopen (») control, so the nav stays reachable on mobile.
+st.set_page_config(page_title="MIA", layout="wide", initial_sidebar_state="auto")
 init_database()
 
 
