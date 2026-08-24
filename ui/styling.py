@@ -8,6 +8,7 @@ MIA-inspired CSS for the Streamlit app.
 """
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 
 CATEGORY_COLORS = {
@@ -29,6 +30,7 @@ CATEGORY_COLORS = {
 # Base CSS that applies for all languages.
 BASE_CSS = """
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700;800&display=swap');
 /* ---- SCROLLBAR (thick, always-visible, elderly-friendly) ---- */
 * { scrollbar-width: auto; scrollbar-color: #2563eb #e0e7ff; }
 ::-webkit-scrollbar { width: 18px !important; height: 18px !important; }
@@ -70,9 +72,11 @@ BASE_CSS = """
 /* ============ WEBSITE THEME — bold, modern SaaS look ============ */
 :root {
   --brand: #4f46e5; --brand-2: #6366f1; --brand-dark: #3730a3;
-  --accent: #06b6d4;
-  --canvas: #eaeef6; --card: #ffffff; --ink: #0f172a;
-  --muted: #64748b; --line: #e5e9f2;
+  --accent: #06b6d4;            /* decorative only (gradients/rails), never text */
+  --accent-text: #0e7490;       /* AA-safe cyan for text/links on light bg */
+  --canvas: #eef2f8; --card: #ffffff; --ink: #0f172a;
+  --muted: #475569;             /* slate-600 → ~7:1 on white (WCAG AA/AAA text) */
+  --line: #dbe1ec;
 }
 
 /* App canvas — soft blue-gray behind bright white cards */
@@ -249,10 +253,16 @@ body { background: var(--canvas); }
 }
 
 /* ---- ELDERLY-FRIENDLY TYPOGRAPHY ---- */
-html, body, [class*="st-"] {
+/* 'Assistant' — a highly legible Hebrew+Latin humanist sans (by an Israeli type
+   designer), chosen for clarity and accessibility. Loaded from Google Fonts in
+   inject(); robust system fallbacks if it can't load. */
+html, body, [class*="st-"], button, input, textarea, select,
+[data-testid="stMarkdownContainer"] {
+  font-family: 'Assistant', system-ui, 'Segoe UI', 'Arial', sans-serif;
   font-size: 17px;
-  line-height: 1.55;
+  line-height: 1.6;                 /* >= 1.5 for readability (WCAG 1.4.8) */
 }
+p, li, [data-testid="stMarkdownContainer"] p { letter-spacing: normal; }
 h1 { font-size: 2.1rem !important; font-weight: 700 !important; }
 h2 { font-size: 1.7rem !important; font-weight: 700 !important; }
 h3 { font-size: 1.35rem !important; font-weight: 600 !important; }
@@ -285,6 +295,67 @@ h4 { font-size: 1.15rem !important; font-weight: 600 !important; }
   font-weight: 600 !important;
   color: #1f2937 !important;
 }
+
+/* =====================================================================
+   ACCESSIBILITY — ת"י 5568 / WCAG 2.0 AA
+   ===================================================================== */
+/* 2.4.7 Focus Visible — a clear, high-contrast keyboard focus ring on every
+   interactive element (Streamlit's default is faint). */
+[data-testid="stApp"] a:focus,
+[data-testid="stApp"] button:focus,
+[data-testid="stApp"] input:focus,
+[data-testid="stApp"] textarea:focus,
+[data-testid="stApp"] select:focus,
+[data-testid="stApp"] summary:focus,
+[data-testid="stApp"] [role="button"]:focus,
+[data-testid="stApp"] [role="tab"]:focus,
+[data-testid="stApp"] [data-baseweb="tab"]:focus,
+[data-testid="stApp"] [tabindex]:focus,
+[data-testid="stSidebar"] .stButton button:focus {
+  outline: 3px solid #1e3a8a !important;
+  outline-offset: 2px !important;
+  /* box-shadow ring survives Streamlit's outline resets, so the focus is
+     always visible (a white gap + a strong blue ring on any background) */
+  box-shadow: 0 0 0 3px #ffffff, 0 0 0 6px #1e3a8a !important;
+  border-radius: 6px !important;
+}
+[data-baseweb="select"]:focus-within,
+[data-baseweb="input"]:focus-within {
+  outline: 3px solid #1e3a8a !important;
+  outline-offset: 1px !important;
+}
+
+/* 1.4.1 Use of Colour — in-content links carry an underline, not colour alone */
+[data-testid="stMain"] a:not(.back-to-top-link):not([class*="brand"]) {
+  color: #3730a3;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+[data-testid="stMain"] a:not(.back-to-top-link):hover { color: #1e3a8a; }
+
+/* 2.3.3 / respect the OS "reduce motion" setting */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* 2.4.1 Bypass Blocks — visually-hidden skip link that appears on focus */
+.sr-only {
+  position: absolute !important; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.skip-link {
+  position: fixed; top: -80px; inset-inline-start: 12px; z-index: 100000;
+  background: #1e3a8a; color: #fff !important; padding: 0.65rem 1.1rem;
+  border-radius: 0 0 10px 10px; text-decoration: none !important;
+  font-weight: 700; font-size: 1.05rem; transition: top 0.15s;
+}
+.skip-link:focus { top: 0; outline: 3px solid #fde047; outline-offset: 2px; }
 
 /* Tabs: compact so all 8 fit on one row, but still readable for elderly users */
 .stTabs [data-baseweb="tab-list"] {
@@ -394,8 +465,8 @@ h4 { font-size: 1.15rem !important; font-weight: 600 !important; }
   display: inline-flex; align-items: center; justify-content: center;
   font-size: 0.95rem; font-weight: 700;
 }
-.day-date { color: #6b7280; font-size: 0.92rem; }
-.day-stats { font-size: 0.9rem; color: #6b7280; font-weight: 600; }
+.day-date { color: #4b5563; font-size: 0.92rem; }
+.day-stats { font-size: 0.9rem; color: #4b5563; font-weight: 600; }
 .day-today {
   border-color: #2563eb !important;
   box-shadow: 0 6px 18px rgba(37, 99, 235, 0.18);
@@ -414,7 +485,7 @@ h4 { font-size: 1.15rem !important; font-weight: 600 !important; }
   background: #d1fae5;
   border-right-color: #059669;
   text-decoration: line-through;
-  color: #6b7280;
+  color: #4b5563;
 }
 .activity-time {
   display: inline-block; font-weight: 700; color: #1f2937; margin-left: 0.5rem;
@@ -444,7 +515,7 @@ h4 { font-size: 1.15rem !important; font-weight: 600 !important; }
 .family-card .name { font-size: 1.1rem; font-weight: 700; color: #78350f; }
 .family-card .relation { color: #92400e; font-size: 0.95rem; }
 .family-card .phone { font-size: 1.05rem; color: #1f2937; font-weight: 600; margin-top: 0.3rem; }
-.family-card .notes { font-size: 0.9rem; color: #6b7280; margin-top: 0.4rem; font-style: italic; }
+.family-card .notes { font-size: 0.9rem; color: #4b5563; margin-top: 0.4rem; font-style: italic; }
 .primary-badge {
   display: inline-block;
   background: #f59e0b; color: white;
@@ -579,24 +650,33 @@ def inject(lang: str = "he") -> None:
     st.markdown(BASE_CSS, unsafe_allow_html=True)
     if lang in {"he", "ar"}:
         st.markdown(RTL_CSS, unsafe_allow_html=True)
-        st.markdown(
-            '<script>document.documentElement.lang="' + lang + '";'
-            'document.documentElement.dir="rtl";</script>',
-            unsafe_allow_html=True,
-        )
-    else:
-        st.markdown(
-            '<script>document.documentElement.lang="' + lang + '";'
-            'document.documentElement.dir="ltr";</script>',
-            unsafe_allow_html=True,
-        )
 
-    # Floating "back to top" button + invisible top anchor.
-    # Title in user's language.
+    # Set <html lang> and dir on the REAL document so screen readers announce the
+    # correct language and direction (WCAG 3.1.1 / 3.1.2). st.markdown strips
+    # <script>, so use a 0-height components iframe (its scripts DO run) that
+    # reaches the parent document.
+    _dir = "rtl" if lang in {"he", "ar"} else "ltr"
+    components.html(
+        "<script>try{var d=window.parent.document.documentElement;"
+        "d.lang='" + lang + "';d.setAttribute('dir','" + _dir + "');}"
+        "catch(e){}</script>",
+        height=0,
+    )
+
+    # Skip-to-content link (WCAG 2.4.1) — first focusable element on the page.
+    skip_text = {"he": "דלג לתוכן הראשי", "ru": "Перейти к содержимому",
+                 "en": "Skip to main content"}.get(lang, "Skip to main content")
+    st.markdown(
+        f'<a href="#page-top" class="skip-link">{skip_text}</a>'
+        f'<a id="page-top" name="page-top"></a>',
+        unsafe_allow_html=True,
+    )
+
+    # Floating "back to top" button — labelled for screen readers, emoji hidden.
     title_text = {"he": "חזרה למעלה", "ru": "Наверх", "en": "Back to top"}.get(lang, "Back to top")
     st.markdown(
-        f'<a name="page-top"></a>'
-        f'<a href="#page-top" class="back-to-top-link" title="{title_text}">⬆️</a>',
+        f'<a href="#page-top" class="back-to-top-link" title="{title_text}" '
+        f'aria-label="{title_text}"><span aria-hidden="true">⬆️</span></a>',
         unsafe_allow_html=True,
     )
 

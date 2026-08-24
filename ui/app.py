@@ -34,9 +34,12 @@ from reports import export as report_export
 
 
 # ---------------- bootstrap ----------------
-# initial_sidebar_state="auto" → expanded on desktop, collapsed on phones (so
-# the nav overlay doesn't cover the content on first load).
-st.set_page_config(page_title="MIA", layout="wide", initial_sidebar_state="auto")
+# initial_sidebar_state="expanded": keep the sidebar in the DOM and reachable on
+# EVERY device. On phones some Streamlit builds drop the collapsed sidebar (and
+# its reopen control) entirely, stranding the nav; "expanded" avoids that — the
+# sidebar opens as a normal overlay with a visible close (◀) button, and with the
+# RTL flip now desktop-only it slides in cleanly over the content.
+st.set_page_config(page_title="MIA", layout="wide", initial_sidebar_state="expanded")
 init_database()
 
 
@@ -234,6 +237,7 @@ with st.sidebar:
     _nav_button("manager", "📊", "nav_admin")
     _nav_button("knowledge", "📚", "nav_knowledge")
     _nav_button("rules", "📋", "nav_rules")
+    _nav_button("accessibility", "♿", "nav_accessibility")
 
     st.markdown("---")
 
@@ -1208,7 +1212,7 @@ def _render_external_tab(conn, elder_id, LANG):
                 with cols[0]:
                     st.markdown(
                         f"**{'✅ ' if enrolled else ''}{p['name']}**  "
-                        f"<span style='color:#6b7280'>· {p['category']}</span>",
+                        f"<span style='color:#4b5563'>· {p['category']}</span>",
                         unsafe_allow_html=True,
                     )
                     st.markdown(
@@ -1474,7 +1478,7 @@ def _render_daily_plan_tab(conn, elder_id, LANG):
                 )
                 st.markdown(
                     styling.render_category_pill(category, cat_label) +
-                    f" <span style='color:#6b7280;font-size:0.85rem;'>⏱️ {it['duration_min']} {t('duration_min', LANG)} | 🎯 {it['rationale'] or '-'}</span>",
+                    f" <span style='color:#4b5563;font-size:0.85rem;'>⏱️ {it['duration_min']} {t('duration_min', LANG)} | 🎯 {it['rationale'] or '-'}</span>",
                     unsafe_allow_html=True,
                 )
                 if it["description_he"]:
@@ -1617,7 +1621,7 @@ def _render_day_card(conn, elder_id, day_date, day_idx, LANG, name_field, today_
         )
     if not items:
         inner_items_html = (
-            f'<div style="color:#9ca3af;font-style:italic;font-size:0.85rem;">'
+            f'<div style="color:#4b5563;font-style:italic;font-size:0.85rem;">'
             f'{t("no_activities_day", LANG)}</div>'
         )
 
@@ -2117,7 +2121,7 @@ def view_manager(LANG: str):
                     f"<span style='background:#dcfce7;color:#166534;"
                     f"border-radius:999px;padding:0.1rem 0.6rem;font-weight:700;'>"
                     f"👥 {s['served']} דיירים</span>"
-                    f"<div style='color:#6b7280;font-size:0.85rem;"
+                    f"<div style='color:#4b5563;font-size:0.85rem;"
                     f"margin-top:0.2rem;'>{names}{more}</div></div>",
                     unsafe_allow_html=True,
                 )
@@ -2387,7 +2391,7 @@ def view_knowledge(LANG: str):
             c1, c2 = st.columns([11, 1])
             with c1:
                 cat = CAT_LABELS.get(s["category"], s["category"] or "🌐 כללי")
-                desc = (f"<div style='color:#6b7280;font-size:0.9rem;"
+                desc = (f"<div style='color:#4b5563;font-size:0.9rem;"
                         f"margin-top:0.2rem;'>{s['description']}</div>"
                         if s["description"] else "")
                 st.markdown(
@@ -2522,7 +2526,7 @@ def view_rules(LANG: str):
                                ("אחרי", "after", "לפני", "before", "עד "))
                 is_enforced = has_time and has_forbid and has_when
                 badge = "🤖 נאכף אוטומטית" if is_enforced else "👁️ לידיעת הצוות"
-                badge_color = "#059669" if is_enforced else "#6b7280"
+                badge_color = "#059669" if is_enforced else "#4b5563"
                 st.markdown(
                     f"<div style='padding:0.6rem 0.9rem;background:#f9fafb;"
                     f"border-right:5px solid {badge_color};"
@@ -2882,7 +2886,7 @@ def view_goals(LANG: str):
                     f"<span style='background:{src_color}20;color:{src_color};"
                     f"padding:1px 8px;border-radius:999px;font-size:0.72rem;"
                     f"font-weight:600;'>{src_label}</span> "
-                    f"<span style='color:#9ca3af;font-size:0.78rem;'>🏷️ "
+                    f"<span style='color:#4b5563;font-size:0.78rem;'>🏷️ "
                     f"{g['target_tags'] or '-'}</span>",
                     unsafe_allow_html=True,
                 )
@@ -2967,6 +2971,50 @@ def view_weekly(LANG: str):
 
 
 # =====================================================================
+# ACCESSIBILITY STATEMENT (♿ הצהרת נגישות) — required by Israeli regulation
+# =====================================================================
+def view_accessibility(LANG: str):
+    today_str = dt.date.today().strftime("%d/%m/%Y")
+    st.markdown("# ♿ הצהרת נגישות")
+    st.markdown(
+        "אנו רואים חשיבות רבה במתן שירות שוויוני ונגיש לכלל המשתמשים, "
+        "לרבות אנשים עם מוגבלות. מערכת זו נבנתה במטרה לעמוד בהוראות "
+        "**תקנות שוויון זכויות לאנשים עם מוגבלות (התאמות נגישות לשירות), "
+        "התשע\"ג-2013**, ובתקן הישראלי **ת\"י 5568** לנגישות תכנים באינטרנט, "
+        "ברמת התאמה **AA** (המבוסס על הנחיות **WCAG 2.0**)."
+    )
+
+    st.markdown("### מה נעשה להנגשת המערכת")
+    st.markdown(
+        "- **ניגודיות צבעים תקנית** — יחס של 4.5:1 לפחות בין טקסט לרקע בכל הממשק.\n"
+        "- **גופן ברור וקריא** (Assistant), גודל טקסט מוגדל וריווח שורות נדיב.\n"
+        "- **ניווט מלא במקלדת** עם סימון מיקוד (focus) בולט וברור.\n"
+        "- **קישור \"דלג לתוכן הראשי\"** בתחילת כל עמוד (מופיע בעת ניווט במקלדת).\n"
+        "- **תמיכה מלאה בעברית מימין לשמאל** (RTL).\n"
+        "- **התאמה למכשירים ניידים** וטלפונים.\n"
+        "- **כיבוד העדפת המשתמש להפחתת אנימציות** (Reduce Motion) של מערכת ההפעלה.\n"
+        "- **תוויות טקסט (aria-label)** לרכיבים אינטראקטיביים עבור קוראי מסך."
+    )
+
+    st.markdown("### מגבלות ידועות")
+    st.markdown(
+        "המערכת מבוססת על תשתית קוד־פתוח (Streamlit) הכוללת רכיבים של צד שלישי, "
+        "ולכן ייתכן שחלק מהרכיבים אינם נגישים באופן מלא. אנו פועלים לשיפור מתמיד. "
+        "⚠️ **חשוב:** אישור נגישות פורמלי מחייב בדיקה של מורשה נגישות מוסמך. מסמך "
+        "זה מתאר את מאמצי ההנגשה שבוצעו ואינו מהווה אישור מורשה נגישות."
+    )
+
+    st.markdown("### פנייה בנושא נגישות")
+    st.info(
+        "נתקלתם בקושי בשימוש או שיש לכם הצעה לשיפור הנגישות? נשמח לשמוע ולסייע:\n\n"
+        "📧 **דוא\"ל רכז/ת הנגישות:** eyal.shevet.achim@gmail.com\n\n"
+        "☎️ **טלפון:** _(יש להשלים את מספר הטלפון של רכז/ת הנגישות בארגון)_\n\n"
+        "נטפל בפנייתכם בהקדם האפשרי."
+    )
+    st.caption(f"תאריך עדכון ההצהרה: {today_str}")
+
+
+# =====================================================================
 # DISPATCH
 # =====================================================================
 LANG = st.session_state.lang
@@ -2984,5 +3032,7 @@ elif st.session_state.view == "weekly":
     view_weekly(LANG)
 elif st.session_state.view == "tracking":
     view_tracking(LANG)
+elif st.session_state.view == "accessibility":
+    view_accessibility(LANG)
 else:
     view_knowledge(LANG)
