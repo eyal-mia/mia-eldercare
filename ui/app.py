@@ -1475,9 +1475,16 @@ def _render_daily_plan_tab(conn, elder_id, LANG):
                     f"🕐 {it['start_time']} - {title}</strong></div>",
                     unsafe_allow_html=True,
                 )
+                # Pill + meta as a wrapping flex row so the category pill and the
+                # duration/rationale text never sit on top of each other when the
+                # rationale is long enough to wrap.
                 st.markdown(
-                    styling.render_category_pill(category, cat_label) +
-                    f" <span style='color:#4b5563;font-size:0.85rem;'>⏱️ {it['duration_min']} {t('duration_min', LANG)} | 🎯 {it['rationale'] or '-'}</span>",
+                    "<div style='display:flex;flex-wrap:wrap;align-items:center;"
+                    "gap:0.25rem 0.5rem;'>"
+                    + styling.render_category_pill(category, cat_label)
+                    + f"<span style='color:#4b5563;font-size:0.85rem;'>⏱️ "
+                    f"{it['duration_min']} {t('duration_min', LANG)} | 🎯 "
+                    f"{it['rationale'] or '-'}</span></div>",
                     unsafe_allow_html=True,
                 )
                 if it["description_he"]:

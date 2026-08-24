@@ -264,11 +264,33 @@ body { background: var(--canvas); }
 /* 'Assistant' — a highly legible Hebrew+Latin humanist sans (by an Israeli type
    designer), chosen for clarity and accessibility. Loaded from Google Fonts in
    inject(); robust system fallbacks if it can't load. */
-html, body, [class*="st-"], button, input, textarea, select,
+html, body,
+[class*="st-"]:not([data-testid="stIconMaterial"]),
+button, input, textarea, select,
 [data-testid="stMarkdownContainer"] {
   font-family: 'Assistant', system-ui, 'Segoe UI', 'Arial', sans-serif;
   font-size: 17px;
   line-height: 1.6;                 /* >= 1.5 for readability (WCAG 1.4.8) */
+}
+/* NEVER let the text font touch Streamlit's Material icons. They render glyphs
+   from a ligature font ('keyboard_arrow_right' -> ▸). If our text font wins, the
+   ligature name shows as RAW TEXT and collides with the real label next to it.
+   Force the icon font back with high specificity + !important. */
+span[data-testid="stIconMaterial"],
+[data-testid="stIconMaterial"] {
+  font-family: 'Material Symbols Rounded', 'Material Symbols Outlined',
+               'Material Icons Rounded', 'Material Icons' !important;
+  font-weight: normal !important;
+  font-style: normal !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
+  white-space: nowrap !important;
+  word-wrap: normal !important;
+  direction: ltr !important;
+  font-feature-settings: 'liga' !important;
+  -webkit-font-feature-settings: 'liga' !important;
+  text-rendering: optimizeLegibility !important;
+  -webkit-font-smoothing: antialiased !important;
 }
 p, li, [data-testid="stMarkdownContainer"] p { letter-spacing: normal; }
 h1 { font-size: 2.1rem !important; font-weight: 700 !important; }
