@@ -2112,16 +2112,21 @@ def view_manager(LANG: str):
                 more = (f" +{len(s['served_names']) - 14}"
                         if len(s["served_names"]) > 14 else "")
                 st.markdown(
-                    f"<div style='padding:0.5rem 0.9rem;background:#fff;"
+                    f"<div style='padding:0.55rem 0.9rem;background:#fff;"
                     f"border:1px solid #e5e9f2;border-radius:10px;"
                     f"margin-bottom:0.4rem;'>"
-                    f"<b>{s['time']}</b> · <b>{s['name']}</b> "
-                    f"<span style='color:#4338ca;'>({s['label']} · {catlab})</span> "
+                    # top row: wrap cleanly on narrow screens instead of overlapping
+                    f"<div style='display:flex;flex-wrap:wrap;align-items:center;"
+                    f"gap:0.25rem 0.55rem;'>"
+                    f"<b>{s['time']}</b>"
+                    f"<b>{s['name']}</b>"
+                    f"<span style='color:#4338ca;'>{s['label']} · {catlab}</span>"
                     f"<span style='background:#dcfce7;color:#166534;"
-                    f"border-radius:999px;padding:0.1rem 0.6rem;font-weight:700;'>"
-                    f"👥 {s['served']} דיירים</span>"
+                    f"border-radius:999px;padding:0.1rem 0.6rem;font-weight:700;"
+                    f"white-space:nowrap;'>👥 {s['served']} דיירים</span>"
+                    f"</div>"
                     f"<div style='color:#4b5563;font-size:0.85rem;"
-                    f"margin-top:0.2rem;'>{names}{more}</div></div>",
+                    f"margin-top:0.3rem;'>{names}{more}</div></div>",
                     unsafe_allow_html=True,
                 )
         with st.expander("👥 כיסוי לפי דייר/ת (מס' מפגשים קבוצתיים בשבוע)"):
