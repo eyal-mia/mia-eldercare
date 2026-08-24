@@ -652,11 +652,12 @@ html { scroll-behavior: smooth; }
 [data-testid="stSidebar"] { direction: rtl; text-align: right; }
 [data-testid="stSidebar"] * { text-align: right; }
 
-/* Sidebar on the RIGHT (RTL-correct), on every width: the app container already
-   INHERITS `direction: rtl` from <html dir="rtl">, so its flex main axis starts
-   on the right and the sidebar (first child) lays out on the right — no explicit
-   `direction`/`row-reverse` override needed (verified). Inner text direction is
-   handled on stMain/stSidebar below. */
+/* Sidebar on the RIGHT (RTL-correct), on every width, via `row-reverse` on the
+   top-level [sidebar, main] flex container. The document is kept LTR (only lang
+   is set, not dir) because dir=rtl on <html> made Streamlit Cloud's iframe drop
+   the sidebar; RTL *text* is applied on stMain/stSidebar below. On phones the
+   sidebar is a fixed overlay (mobile block), so this flip doesn't affect it. */
+[data-testid="stAppViewContainer"] { flex-direction: row-reverse; }
 
 /* Inputs RTL. */
 .stTextInput input, .stTextArea textarea, .stNumberInput input,
@@ -688,14 +689,14 @@ def inject(lang: str = "he") -> None:
     if lang in {"he", "ar"}:
         st.markdown(RTL_CSS, unsafe_allow_html=True)
 
-    # Set <html lang> and dir on the REAL document so screen readers announce the
-    # correct language and direction (WCAG 3.1.1 / 3.1.2). st.markdown strips
-    # <script>, so use a 0-height components iframe (its scripts DO run) that
-    # reaches the parent document.
-    _dir = "rtl" if lang in {"he", "ar"} else "ltr"
+    # Set <html lang> on the REAL document so screen readers announce the correct
+    # language (WCAG 3.1.1). st.markdown strips <script>, so use a 0-height
+    # components iframe (its scripts DO run) that reaches the parent document.
+    # NOTE: we deliberately set ONLY lang, not dir="rtl" — setting dir on <html>
+    # made Streamlit Cloud's app iframe drop the sidebar entirely. Visual RTL is
+    # applied via `direction: rtl` on stMain/stSidebar (RTL_CSS) instead.
     components.html(
-        "<script>try{var d=window.parent.document.documentElement;"
-        "d.lang='" + lang + "';d.setAttribute('dir','" + _dir + "');}"
+        "<script>try{window.parent.document.documentElement.lang='" + lang + "';}"
         "catch(e){}</script>",
         height=0,
     )
