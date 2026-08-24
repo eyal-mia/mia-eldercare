@@ -634,13 +634,11 @@ html { scroll-behavior: smooth; }
 [data-testid="stSidebar"] { direction: rtl; text-align: right; }
 [data-testid="stSidebar"] * { text-align: right; }
 
-/* Put the sidebar on the RIGHT (RTL-correct), on every width. Setting
-   `direction: rtl` on the top-level flex container makes its main axis start on
-   the right, so the sidebar (first child) lays out on the right — without the
-   brittle `flex-direction: row-reverse` flip, which inverted once the document
-   direction itself became rtl. Text direction of the inner content is already
+/* Sidebar on the RIGHT (RTL-correct), on every width: the app container already
+   INHERITS `direction: rtl` from <html dir="rtl">, so its flex main axis starts
+   on the right and the sidebar (first child) lays out on the right — no explicit
+   `direction`/`row-reverse` override needed (verified). Inner text direction is
    handled on stMain/stSidebar below. */
-[data-testid="stAppViewContainer"] { direction: rtl; }
 
 /* Inputs RTL. */
 .stTextInput input, .stTextArea textarea, .stNumberInput input,
