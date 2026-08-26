@@ -257,6 +257,25 @@ body { background: var(--canvas); }
   background: #fff !important;
 }
 
+/* ---- MULTISELECT TAGS (RTL): the rounded, bordered control can visually clip
+   the first tag against its corner, and baseweb caps the tag label with an
+   ellipsis (max-width). Inset the tag row from the border and let every tag
+   show its FULL Hebrew label, so selected diagnoses / medications / conditions
+   are always fully readable. ---- */
+[data-testid="stMain"] [data-testid="stMultiSelect"] [data-baseweb="select"] > div {
+  padding-inline: 8px !important;
+}
+[data-testid="stMain"] [data-testid="stMultiSelect"] [data-baseweb="tag"] {
+  max-width: none !important;
+  margin: 2px 3px !important;
+}
+[data-testid="stMain"] [data-testid="stMultiSelect"] [data-baseweb="tag"] span[title],
+[data-testid="stMain"] [data-testid="stMultiSelect"] [data-baseweb="tag"] > span {
+  max-width: none !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
 /* ---- DATAFRAMES: framed card ---- */
 [data-testid="stMain"] [data-testid="stDataFrame"] {
   border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
