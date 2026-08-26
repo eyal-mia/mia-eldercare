@@ -377,6 +377,30 @@ def init_database() -> None:
         if col_name not in pi_cols:
             cur.execute(f"ALTER TABLE plan_items ADD COLUMN {col_name} {col_type}")
 
+    # migration: elders — national ID (Israeli ת"ז)
+    cur.execute("PRAGMA table_info(elders)")
+    elder_cols = {r[1] for r in cur.fetchall()}
+    if "national_id" not in elder_cols:
+        cur.execute("ALTER TABLE elders ADD COLUMN national_id TEXT")
+
+    # institution staff / role-holders (director, social worker, nurse,
+    # activity manager, occupational therapist, ...). One row per role-holder,
+    # switchable in the org details card.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS org_staff (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            organization_id INTEGER REFERENCES organizations(id),
+            role_key        TEXT,       -- director / social_worker / nurse / activity_manager / occupational_therapist / ...
+            role_label      TEXT,       -- Hebrew label shown in the UI
+            name            TEXT,
+            phone           TEXT,
+            email           TEXT,
+            notes           TEXT,
+            sort_order      INTEGER DEFAULT 0,
+            active          INTEGER DEFAULT 1
+        )
+    """)
+
     conn.commit()
 
     # mirror knowledge banks

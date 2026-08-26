@@ -353,6 +353,95 @@ def _resident_banner(conn, elder_id, LANG) -> None:
     )
 
 
+def _render_org_staff(conn, org_id: int) -> None:
+    """Institution role-holders (director / social worker / nurse / activity
+    manager / occupational therapist / …). Renders a row of role buttons; click
+    one to switch to that person's contact card. Editable + addable + removable."""
+    staff = conn.execute(
+        "SELECT * FROM org_staff WHERE organization_id = ? AND active = 1 "
+        "ORDER BY sort_order, id", (org_id,)
+    ).fetchall()
+    st.markdown("<div class='staff-title'>👥 בעלי תפקידים במוסד</div>",
+                unsafe_allow_html=True)
+
+    sel_key = f"org_staff_sel_{org_id}"
+    ids = [s["id"] for s in staff]
+    if staff and st.session_state.get(sel_key) not in ids:
+        st.session_state[sel_key] = ids[0]
+
+    sel = None
+    if staff:
+        # role buttons — the active role is highlighted (primary)
+        cols = st.columns(len(staff))
+        for i, s in enumerate(staff):
+            is_active = st.session_state[sel_key] == s["id"]
+            if cols[i].button(
+                s["role_label"], key=f"staffbtn_{s['id']}",
+                type="primary" if is_active else "secondary",
+                width="stretch",
+            ):
+                st.session_state[sel_key] = s["id"]
+                st.rerun()
+
+        sel = next((s for s in staff if s["id"] == st.session_state[sel_key]), staff[0])
+        phone_html = f"📞 <span class='ltr-text'>{sel['phone']}</span>" if sel["phone"] else ""
+        email_html = f"✉️ <span class='ltr-text'>{sel['email']}</span>" if sel["email"] else ""
+        sep = " &nbsp;·&nbsp; " if (phone_html and email_html) else ""
+        notes_html = f"<div class='staff-card-notes'>{sel['notes']}</div>" if sel["notes"] else ""
+        st.markdown(
+            f"<div class='staff-card'>"
+            f"<div class='staff-card-role'>{sel['role_label']}</div>"
+            f"<div class='staff-card-name'>👤 {sel['name'] or '—'}</div>"
+            f"<div class='staff-card-row'>{phone_html}{sep}{email_html}</div>"
+            f"{notes_html}</div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        st.caption("עדיין לא הוגדרו בעלי תפקידים. הוסף/י ראשון למטה.")
+
+    # ---- edit the selected role-holder / add a new one / remove ----
+    _sid = sel["id"] if sel else "new"
+    with st.expander("✏️ עריכה / הוספת בעל תפקיד", expanded=False):
+        with st.form(f"staff_form_{org_id}"):
+            e_role = st.text_input("תפקיד", value=(sel["role_label"] if sel else ""),
+                                   key=f"staff_role_{org_id}_{_sid}")
+            e_name = st.text_input("שם", value=((sel["name"] if sel else "") or ""),
+                                   key=f"staff_name_{org_id}_{_sid}")
+            e_phone = st.text_input("טלפון", value=((sel["phone"] if sel else "") or ""),
+                                    key=f"staff_phone_{org_id}_{_sid}")
+            e_email = st.text_input("אימייל", value=((sel["email"] if sel else "") or ""),
+                                    key=f"staff_email_{org_id}_{_sid}")
+            e_notes = st.text_area("הערות", value=((sel["notes"] if sel else "") or ""),
+                                   key=f"staff_notes_{org_id}_{_sid}")
+            bc = st.columns(3)
+            do_save = bc[0].form_submit_button("💾 שמור") if sel else False
+            do_add = bc[1].form_submit_button("➕ הוסף חדש")
+            do_del = bc[2].form_submit_button("🗑️ מחק") if sel else False
+        if do_save and sel:
+            conn.execute(
+                "UPDATE org_staff SET role_label=?, name=?, phone=?, email=?, notes=? WHERE id=?",
+                (e_role, e_name, e_phone, e_email, e_notes, sel["id"]),
+            )
+            conn.commit()
+            st.rerun()
+        if do_add:
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO org_staff (organization_id, role_key, role_label, name, "
+                "phone, email, notes, sort_order, active) VALUES (?,?,?,?,?,?,?,?,1)",
+                (org_id, "custom", e_role or "תפקיד", e_name, e_phone, e_email,
+                 e_notes, len(staff)),
+            )
+            st.session_state[sel_key] = cur.lastrowid
+            conn.commit()
+            st.rerun()
+        if do_del and sel:
+            conn.execute("DELETE FROM org_staff WHERE id=?", (sel["id"],))
+            conn.commit()
+            st.session_state.pop(sel_key, None)
+            st.rerun()
+
+
 # =====================================================================
 # CAREGIVER VIEW
 # =====================================================================
@@ -377,6 +466,7 @@ def view_caregiver(LANG: str):
                     format_func=lambda v: t(v, LANG),
                 )
                 room = st.text_input(t("room_number", LANG))
+                national_id = st.text_input('מספר ת"ז')
                 lang_pref = st.selectbox(
                     t("primary_language", LANG),
                     options=list(SUPPORTED.keys()),
@@ -386,9 +476,10 @@ def view_caregiver(LANG: str):
                     if name.strip():
                         cur = conn.cursor()
                         cur.execute(
-                            "INSERT INTO elders (organization_id, full_name, birth_date, gender, room_number, primary_language) "
-                            "VALUES ((SELECT id FROM organizations LIMIT 1), ?, ?, ?, ?, ?)",
-                            (name.strip(), birth.isoformat(), gender, room, lang_pref),
+                            "INSERT INTO elders (organization_id, full_name, birth_date, gender, room_number, primary_language, national_id) "
+                            "VALUES ((SELECT id FROM organizations LIMIT 1), ?, ?, ?, ?, ?, ?)",
+                            (name.strip(), birth.isoformat(), gender, room, lang_pref,
+                             (national_id or "").strip()),
                         )
                         elder_id = cur.lastrowid
                         cur.execute(
@@ -411,27 +502,7 @@ def view_caregiver(LANG: str):
     elder = conn.execute("SELECT * FROM elders WHERE id = ?", (elder_id,)).fetchone()
     profile = conn.execute("SELECT * FROM elder_profile WHERE elder_id = ?", (elder_id,)).fetchone()
 
-    # ---- RESIDENT header FIRST (the resident's name leads the screen,
-    #      before the institution info, participation and the tab menu) ----
-    age = ""
-    if elder["birth_date"]:
-        try:
-            _bd = dt.date.fromisoformat(elder["birth_date"])
-            age = f"{(dt.date.today() - _bd).days // 365} שנים"
-        except Exception:
-            pass
-    st.markdown(
-        f"""<div class="eldercare-header">
-        <h2>👤 {elder['full_name']}</h2>
-        <div class="subtitle">
-          {t('room_number', LANG)} {elder['room_number'] or '-'} ·
-          {age} · {t(elder['gender'] or 'other', LANG)} ·
-          {SUPPORTED.get(elder['primary_language'], '-')}
-        </div></div>""",
-        unsafe_allow_html=True,
-    )
-
-    # ---- ORGANIZATION (institution) banner ----
+    # ---- ORGANIZATION (institution) details FIRST, then the resident box ----
     org = conn.execute("""
         SELECT o.* FROM organizations o
         JOIN elders e ON e.organization_id = o.id
@@ -478,11 +549,35 @@ def view_caregiver(LANG: str):
             """,
             unsafe_allow_html=True,
         )
+        # ---- institution role-holders: click a role to switch between them ----
+        _render_org_staff(conn, org["id"])
+
         if org_rules and org_rules.strip():
             rules_lines = [ln.strip() for ln in org_rules.split("\n") if ln.strip()]
             with st.expander(f"📋 כללי המוסד ({len(rules_lines)})", expanded=False):
                 for ln in rules_lines:
                     st.markdown(f"• {ln}")
+
+    # ---- RESIDENT box (name + ת"ז + room), AFTER the institution details ----
+    age = ""
+    if elder["birth_date"]:
+        try:
+            _bd = dt.date.fromisoformat(elder["birth_date"])
+            age = f"{(dt.date.today() - _bd).days // 365} שנים"
+        except Exception:
+            pass
+    _nid = elder["national_id"] if "national_id" in elder.keys() and elder["national_id"] else ""
+    st.markdown(
+        f"""<div class="eldercare-header">
+        <h2>👤 {elder['full_name']}</h2>
+        <div class="subtitle">
+          {t('room_number', LANG)} {elder['room_number'] or '-'} ·
+          {('🪪 ת"ז ' + _nid + ' · ') if _nid else ''}{age} ·
+          {t(elder['gender'] or 'other', LANG)} ·
+          {SUPPORTED.get(elder['primary_language'], '-')}
+        </div></div>""",
+        unsafe_allow_html=True,
+    )
 
     # ---- participation summary (overall activity participation data) ----
     _pc = (dt.date.today() - dt.timedelta(days=30)).isoformat()
@@ -573,6 +668,25 @@ def _render_profile_tab(conn, elder_id, profile, LANG):
     activities = conn.execute("SELECT code, name_he, name_en, category FROM kb_activities ORDER BY category, name_he").fetchall()
 
     name_field = "name_he" if LANG == "he" else "name_en"
+
+    # ---- basic identifiers (room + national ID) ----
+    _er = conn.execute(
+        "SELECT room_number, national_id FROM elders WHERE id = ?", (elder_id,)
+    ).fetchone()
+    _cur_room = (_er["room_number"] if _er else "") or ""
+    _cur_nid = (_er["national_id"] if _er and "national_id" in _er.keys() else "") or ""
+    with st.expander('🪪 פרטים מזהים (חדר + ת"ז)', expanded=False):
+        with st.form(f"ident_form_{elder_id}"):
+            ic = st.columns(2)
+            f_room = ic[0].text_input(t("room_number", LANG), value=_cur_room)
+            f_nid = ic[1].text_input('מספר ת"ז', value=_cur_nid)
+            if st.form_submit_button("💾 " + t("save", LANG)):
+                conn.execute(
+                    "UPDATE elders SET room_number=?, national_id=? WHERE id=?",
+                    (f_room.strip(), f_nid.strip(), elder_id),
+                )
+                conn.commit()
+                st.rerun()
 
     st.markdown(f"#### 🏥 {t('diseases_codes', LANG)} / 💊 {t('medications_codes', LANG)}")
     cc = st.columns(2)

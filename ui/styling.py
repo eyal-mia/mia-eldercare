@@ -497,6 +497,22 @@ h4 { font-size: 1.15rem !important; font-weight: 600 !important; }
   border-top: 1px dashed #d97706; padding-top: 0.4rem; font-style: italic;
 }
 
+/* ---- Institution role-holders (staff switcher inside the org details) ---- */
+.staff-title {
+  font-weight: 700; color: var(--brand-dark); margin: 0.7rem 0 0.35rem;
+  font-size: 1.02rem;
+}
+.staff-card {
+  background: #fff; border: 1.5px solid var(--line-strong);
+  border-inline-start: 6px solid var(--brand);
+  border-radius: 14px; padding: 0.7rem 1rem; margin-top: 0.4rem;
+  box-shadow: 0 4px 14px rgba(15,23,42,0.05);
+}
+.staff-card-role { color: var(--accent-text); font-weight: 700; font-size: 0.9rem; }
+.staff-card-name { font-weight: 800; font-size: 1.12rem; margin: 0.1rem 0 0.2rem; }
+.staff-card-row { color: var(--muted); font-size: 0.96rem; }
+.staff-card-notes { color: var(--muted); font-size: 0.9rem; margin-top: 0.35rem; }
+
 /* ---- Resident banner (sub-views: goals / daily / weekly / tracking) ---- */
 .resident-banner {
   display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;

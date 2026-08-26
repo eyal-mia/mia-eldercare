@@ -1081,6 +1081,19 @@ def _csv(items: list[str]) -> str:
     return ";".join(items)
 
 
+def _israeli_id(seed: int) -> str:
+    """Return a valid 9-digit Israeli ID (correct check digit) from a seed,
+    so demo residents have realistic (but fake) ת"ז numbers."""
+    base = 10000000 + (seed * 9176117) % 89999999  # 8-digit body
+    body = str(base)[:8]
+    total = 0
+    for i, ch in enumerate(body):
+        p = int(ch) * (1 if i % 2 == 0 else 2)
+        total += p if p < 10 else p - 9
+    check = (10 - (total % 10)) % 10
+    return body + str(check)
+
+
 # ============================================================
 # DEMO ORGS + EXTERNAL PROGRAMS (Neve Shaket + City of Beer Sheva)
 # ============================================================
@@ -1172,6 +1185,31 @@ CITY_PROGRAMS = [
      "min_cap": 2, "address": "מרפאת רמב\"ם, רחוב יצחק רגר",
      "contact": "המרפאה הגריאטרית 08-6400500",
      "notes": "בהפניית רופא משפחה"},
+]
+
+# Institution role-holders for נווה שקט — shown in the org details card with a
+# click-to-switch selector.
+NEVE_SHAKET_STAFF = [
+    {"role_key": "director", "role_label": "מנהלת המוסד",
+     "name": "ד״ר רונית לוי", "phone": "050-1000001",
+     "email": "ronit.levi@neve-shaket.org.il",
+     "notes": "מנהלת בית האבות, זמינה בתיאום מראש דרך המזכירות."},
+    {"role_key": "social_worker", "role_label": "עובדת סוציאלית",
+     "name": "מיכל בר-און", "phone": "050-1000002",
+     "email": "michal.social@neve-shaket.org.il",
+     "notes": "אחראית קשר עם המשפחות, זכויות וסידורים סוציאליים."},
+    {"role_key": "nurse", "role_label": "אחות אחראית",
+     "name": "אורנה כהן", "phone": "050-1000003",
+     "email": "orna.nurse@neve-shaket.org.il",
+     "notes": "אחות אחראית משמרת, מעקב תרופתי ורפואי 24/7 במוקד 105."},
+    {"role_key": "activity_manager", "role_label": "מנהלת תעסוקה",
+     "name": "שירה גל", "phone": "050-1000004",
+     "email": "shira.activity@neve-shaket.org.il",
+     "notes": "אחראית תוכניות הפעילות והתעסוקה של הדיירים."},
+    {"role_key": "occupational_therapist", "role_label": "מרפאה בעיסוק",
+     "name": "נועה שמעוני", "phone": "050-1000005",
+     "email": "noa.ot@neve-shaket.org.il",
+     "notes": "ריפוי בעיסוק, שיקום תפקודי והתאמת עזרים."},
 ]
 
 
@@ -1316,6 +1354,18 @@ def _seed_orgs_and_programs(cur, verbose: bool):
               "באר שבע", p["contact"], "he", "מסובסד", p["notes"],
               p["days"], p["start"], p["duration"],
               p["strengthens"], p["min_cap"], "city"))
+
+    # institution role-holders (switchable in the org details card).
+    # idempotent: wipe + re-seed for נווה שקט.
+    cur.execute("DELETE FROM org_staff WHERE organization_id = ?", (ns_id,))
+    for i, s in enumerate(NEVE_SHAKET_STAFF):
+        cur.execute(
+            "INSERT INTO org_staff (organization_id, role_key, role_label, "
+            "name, phone, email, notes, sort_order, active) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)",
+            (ns_id, s["role_key"], s["role_label"], s["name"],
+             s["phone"], s["email"], s["notes"], i),
+        )
     return ns_id, city_id
 
 
@@ -1432,6 +1482,13 @@ def seed(verbose: bool = True) -> None:
             created += 1
             if verbose:
                 print(f"  created: {spec['name']} (id={elder_id})")
+
+        # national ID (ת"ז) — deterministic, valid check digit, per resident
+        cur.execute(
+            "UPDATE elders SET national_id = ? WHERE id = ? "
+            "AND (national_id IS NULL OR national_id = '')",
+            (_israeli_id(elder_id), elder_id),
+        )
 
         # upsert profile
         w = spec["weights"]
