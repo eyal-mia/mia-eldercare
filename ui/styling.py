@@ -256,6 +256,17 @@ body { background: var(--canvas); }
   border: 1.5px solid var(--line-strong) !important;
   background: #fff !important;
 }
+/* ...but the tiny search input INSIDE a select / multiselect must stay
+   transparent and borderless. The rule above otherwise turns it into a white
+   rounded box that sits over the value tags — the "white circle" the user sees
+   covering the first Hebrew letter of a selected value. */
+[data-testid="stMain"] [data-baseweb="select"] input {
+  border: none !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  min-width: 2px !important;
+}
 
 /* ---- MULTISELECT TAGS (RTL): the rounded, bordered control can visually clip
    the first tag against its corner, and baseweb caps the tag label with an
