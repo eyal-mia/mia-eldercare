@@ -384,6 +384,13 @@ def init_database() -> None:
     if "generated_by" not in dp_cols:
         cur.execute("ALTER TABLE daily_plans ADD COLUMN generated_by TEXT")
 
+    # retire the removed 'sheltered_housing' residence type (bad Hebrew term) —
+    # fold it into 'assisted_living' (דיור מוגן), which is the same thing.
+    cur.execute(
+        "UPDATE elder_profile SET living_arrangement='assisted_living' "
+        "WHERE living_arrangement='sheltered_housing'"
+    )
+
     # migration: elders — national ID (Israeli ת"ז)
     cur.execute("PRAGMA table_info(elders)")
     elder_cols = {r[1] for r in cur.fetchall()}

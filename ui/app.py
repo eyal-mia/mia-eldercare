@@ -757,7 +757,7 @@ def _render_profile_tab(conn, elder_id, profile, LANG):
 
     lcols = st.columns(4)
     arrangement_opts = ["home_alone", "home_family", "assisted_living",
-                        "sheltered_housing", "nursing_home", "day_center"]
+                        "nursing_home", "day_center"]
     current_arr = _pget("living_arrangement") or "assisted_living"
     if current_arr not in arrangement_opts:
         current_arr = "assisted_living"
