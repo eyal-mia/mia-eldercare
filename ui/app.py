@@ -689,25 +689,6 @@ def _render_profile_tab(conn, elder_id, profile, LANG):
 
     name_field = "name_he" if LANG == "he" else "name_en"
 
-    # ---- basic identifiers (room + national ID) ----
-    _er = conn.execute(
-        "SELECT room_number, national_id FROM elders WHERE id = ?", (elder_id,)
-    ).fetchone()
-    _cur_room = (_er["room_number"] if _er else "") or ""
-    _cur_nid = (_er["national_id"] if _er and "national_id" in _er.keys() else "") or ""
-    with st.expander('🪪 פרטים מזהים (חדר + ת"ז)', expanded=False):
-        with st.form(f"ident_form_{elder_id}"):
-            ic = st.columns(2)
-            f_room = ic[0].text_input(t("room_number", LANG), value=_cur_room)
-            f_nid = ic[1].text_input('מספר ת"ז', value=_cur_nid)
-            if st.form_submit_button("💾 " + t("save", LANG)):
-                conn.execute(
-                    "UPDATE elders SET room_number=?, national_id=? WHERE id=?",
-                    (f_room.strip(), f_nid.strip(), elder_id),
-                )
-                conn.commit()
-                st.rerun()
-
     st.markdown(f"#### 🏥 {t('diseases_codes', LANG)} / 💊 {t('medications_codes', LANG)}")
     cc = st.columns(2)
     with cc[0]:
