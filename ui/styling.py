@@ -513,6 +513,16 @@ h4 { font-size: 1.15rem !important; font-weight: 600 !important; }
 .staff-card-row { color: var(--muted); font-size: 0.96rem; }
 .staff-card-notes { color: var(--muted); font-size: 0.9rem; margin-top: 0.35rem; }
 
+/* ---- Sidebar "logged-in user" (role-holder) + entered-by attribution ---- */
+.sb-user-title { font-weight: 700; color: var(--brand-dark); margin: 0.2rem 0 0.1rem;
+  font-size: 0.98rem; }
+.sb-user-badge { background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 10px;
+  padding: 0.4rem 0.7rem; margin: 0.35rem 0; font-size: 0.95rem; line-height: 1.35; }
+.sb-user-badge span { color: var(--muted); font-size: 0.82rem; }
+.entered-by { color: var(--muted); font-size: 0.9rem; margin: 0.2rem 0 0.7rem;
+  background: #f8fafc; border: 1px solid var(--line); border-radius: 8px;
+  padding: 0.3rem 0.75rem; display: inline-block; }
+
 /* ---- Resident banner (sub-views: goals / daily / weekly / tracking) ---- */
 .resident-banner {
   display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;

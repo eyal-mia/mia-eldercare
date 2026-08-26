@@ -367,15 +367,22 @@ def init_database() -> None:
         if col_name not in ep_cols:
             cur.execute(f"ALTER TABLE external_programs ADD COLUMN {col_name} {col_type}")
 
-    # migration: plan_items — instructor review of the resident per activity
+    # migration: plan_items — instructor review + who last updated (attribution)
     cur.execute("PRAGMA table_info(plan_items)")
     pi_cols = {r[1] for r in cur.fetchall()}
     for col_name, col_type in [
         ("instructor_rating", "INTEGER"),   # 1..5 (5 = excellent fit/engagement)
         ("instructor_review", "TEXT"),
+        ("updated_by", "TEXT"),             # staff member who marked / reviewed it
     ]:
         if col_name not in pi_cols:
             cur.execute(f"ALTER TABLE plan_items ADD COLUMN {col_name} {col_type}")
+
+    # migration: daily_plans — who entered/generated the plan (attribution)
+    cur.execute("PRAGMA table_info(daily_plans)")
+    dp_cols = {r[1] for r in cur.fetchall()}
+    if "generated_by" not in dp_cols:
+        cur.execute("ALTER TABLE daily_plans ADD COLUMN generated_by TEXT")
 
     # migration: elders — national ID (Israeli ת"ז)
     cur.execute("PRAGMA table_info(elders)")

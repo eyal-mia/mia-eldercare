@@ -132,6 +132,100 @@ LANG = st.session_state.lang
 styling.inject(LANG)
 
 
+def _current_user() -> str:
+    """Name of the currently 'logged-in' role-holder — used to attribute the
+    plans / tracking that a staff member enters ('who entered what')."""
+    return (st.session_state.get("current_user_name") or "").strip()
+
+
+def _stamp_plan_author(conn, elder_id, plan_date_iso) -> None:
+    """Record who generated/entered this day's plan (attribution)."""
+    u = _current_user()
+    if u:
+        conn.execute(
+            "UPDATE daily_plans SET generated_by=? WHERE elder_id=? AND plan_date=?",
+            (u, elder_id, plan_date_iso),
+        )
+        conn.commit()
+
+
+def _render_user_login() -> None:
+    """Sidebar (right side): choose which institution role-holder you are — like
+    a user login. Whatever you then enter (plans, tracking) is attributed to you.
+    Also lets you add / edit / remove role-holders."""
+    conn = get_connection()
+    staff = conn.execute(
+        "SELECT id, organization_id, role_label, name, phone, email, notes "
+        "FROM org_staff WHERE active = 1 ORDER BY sort_order, id"
+    ).fetchall()
+    org_id = staff[0]["organization_id"] if staff else (
+        (conn.execute("SELECT id FROM organizations LIMIT 1").fetchone() or [None])[0]
+    )
+    st.markdown("---")
+    st.markdown("<div class='sb-user-title'>👥 בעלי תפקידים</div>",
+                unsafe_allow_html=True)
+
+    person = None
+    if staff:
+        ids = [s["id"] for s in staff]
+        labels = {s["id"]: f"{s['name']} · {s['role_label']}" for s in staff}
+        if st.session_state.get("current_user_id") not in ids:
+            st.session_state.current_user_id = ids[0]
+        st.selectbox("מחובר/ת כ:", options=ids,
+                     format_func=lambda i: labels.get(i, "-"),
+                     key="current_user_id")
+        person = next(
+            (s for s in staff if s["id"] == st.session_state.current_user_id), staff[0])
+        st.session_state.current_user_name = person["name"]
+        st.markdown(
+            f"<div class='sb-user-badge'>✅ <b>{person['name']}</b>"
+            f"<br><span>{person['role_label']}</span></div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        st.session_state.current_user_name = ""
+        st.caption("אין בעלי תפקידים — הוסף/י למטה.")
+
+    # ---- manage role-holders (add / edit / remove) ----
+    _sid = person["id"] if person else "new"
+    with st.expander("⚙️ ניהול בעלי תפקידים", expanded=False):
+        with st.form("sb_staff_form"):
+            f_role = st.text_input("תפקיד", value=(person["role_label"] if person else ""),
+                                   key=f"sbrole_{_sid}")
+            f_name = st.text_input("שם", value=((person["name"] if person else "") or ""),
+                                   key=f"sbname_{_sid}")
+            f_phone = st.text_input("טלפון", value=((person["phone"] if person else "") or ""),
+                                    key=f"sbphone_{_sid}")
+            f_email = st.text_input("אימייל", value=((person["email"] if person else "") or ""),
+                                    key=f"sbemail_{_sid}")
+            bc = st.columns(3)
+            do_save = bc[0].form_submit_button("💾 שמור") if person else False
+            do_add = bc[1].form_submit_button("➕ חדש")
+            do_del = bc[2].form_submit_button("🗑️ מחק") if person else False
+        if do_save and person:
+            conn.execute(
+                "UPDATE org_staff SET role_label=?, name=?, phone=?, email=? WHERE id=?",
+                (f_role, f_name, f_phone, f_email, person["id"]))
+            conn.commit()
+            st.rerun()
+        if do_add:
+            c2 = conn.cursor()
+            c2.execute(
+                "INSERT INTO org_staff (organization_id, role_key, role_label, name, "
+                "phone, email, notes, sort_order, active) VALUES (?,?,?,?,?,?,?,?,1)",
+                (org_id, "custom", f_role or "תפקיד", f_name, f_phone, f_email, "",
+                 len(staff)))
+            st.session_state.current_user_id = c2.lastrowid
+            conn.commit()
+            st.rerun()
+        if do_del and person:
+            conn.execute("DELETE FROM org_staff WHERE id=?", (person["id"],))
+            conn.commit()
+            st.session_state.pop("current_user_id", None)
+            st.rerun()
+    conn.close()
+
+
 # ---------------- sidebar ----------------
 with st.sidebar:
     st.session_state.lang = st.selectbox(
@@ -207,6 +301,9 @@ with st.sidebar:
         # commit the pick as the app-wide current resident
         st.session_state.elder_id = st.session_state.nav_elder_pick
         st.session_state._elder_id_shadow = st.session_state.elder_id
+
+    # logged-in staff user (role-holder) — attribution of who enters what
+    _render_user_login()
 
     # navigation is split into two groups: elder-specific data vs general
     # (institution-wide) data. Buttons let us render group headers.
@@ -353,95 +450,6 @@ def _resident_banner(conn, elder_id, LANG) -> None:
     )
 
 
-def _render_org_staff(conn, org_id: int) -> None:
-    """Institution role-holders (director / social worker / nurse / activity
-    manager / occupational therapist / …). Renders a row of role buttons; click
-    one to switch to that person's contact card. Editable + addable + removable."""
-    staff = conn.execute(
-        "SELECT * FROM org_staff WHERE organization_id = ? AND active = 1 "
-        "ORDER BY sort_order, id", (org_id,)
-    ).fetchall()
-    st.markdown("<div class='staff-title'>👥 בעלי תפקידים במוסד</div>",
-                unsafe_allow_html=True)
-
-    sel_key = f"org_staff_sel_{org_id}"
-    ids = [s["id"] for s in staff]
-    if staff and st.session_state.get(sel_key) not in ids:
-        st.session_state[sel_key] = ids[0]
-
-    sel = None
-    if staff:
-        # role buttons — the active role is highlighted (primary)
-        cols = st.columns(len(staff))
-        for i, s in enumerate(staff):
-            is_active = st.session_state[sel_key] == s["id"]
-            if cols[i].button(
-                s["role_label"], key=f"staffbtn_{s['id']}",
-                type="primary" if is_active else "secondary",
-                width="stretch",
-            ):
-                st.session_state[sel_key] = s["id"]
-                st.rerun()
-
-        sel = next((s for s in staff if s["id"] == st.session_state[sel_key]), staff[0])
-        phone_html = f"📞 <span class='ltr-text'>{sel['phone']}</span>" if sel["phone"] else ""
-        email_html = f"✉️ <span class='ltr-text'>{sel['email']}</span>" if sel["email"] else ""
-        sep = " &nbsp;·&nbsp; " if (phone_html and email_html) else ""
-        notes_html = f"<div class='staff-card-notes'>{sel['notes']}</div>" if sel["notes"] else ""
-        st.markdown(
-            f"<div class='staff-card'>"
-            f"<div class='staff-card-role'>{sel['role_label']}</div>"
-            f"<div class='staff-card-name'>👤 {sel['name'] or '—'}</div>"
-            f"<div class='staff-card-row'>{phone_html}{sep}{email_html}</div>"
-            f"{notes_html}</div>",
-            unsafe_allow_html=True,
-        )
-    else:
-        st.caption("עדיין לא הוגדרו בעלי תפקידים. הוסף/י ראשון למטה.")
-
-    # ---- edit the selected role-holder / add a new one / remove ----
-    _sid = sel["id"] if sel else "new"
-    with st.expander("✏️ עריכה / הוספת בעל תפקיד", expanded=False):
-        with st.form(f"staff_form_{org_id}"):
-            e_role = st.text_input("תפקיד", value=(sel["role_label"] if sel else ""),
-                                   key=f"staff_role_{org_id}_{_sid}")
-            e_name = st.text_input("שם", value=((sel["name"] if sel else "") or ""),
-                                   key=f"staff_name_{org_id}_{_sid}")
-            e_phone = st.text_input("טלפון", value=((sel["phone"] if sel else "") or ""),
-                                    key=f"staff_phone_{org_id}_{_sid}")
-            e_email = st.text_input("אימייל", value=((sel["email"] if sel else "") or ""),
-                                    key=f"staff_email_{org_id}_{_sid}")
-            e_notes = st.text_area("הערות", value=((sel["notes"] if sel else "") or ""),
-                                   key=f"staff_notes_{org_id}_{_sid}")
-            bc = st.columns(3)
-            do_save = bc[0].form_submit_button("💾 שמור") if sel else False
-            do_add = bc[1].form_submit_button("➕ הוסף חדש")
-            do_del = bc[2].form_submit_button("🗑️ מחק") if sel else False
-        if do_save and sel:
-            conn.execute(
-                "UPDATE org_staff SET role_label=?, name=?, phone=?, email=?, notes=? WHERE id=?",
-                (e_role, e_name, e_phone, e_email, e_notes, sel["id"]),
-            )
-            conn.commit()
-            st.rerun()
-        if do_add:
-            cur = conn.cursor()
-            cur.execute(
-                "INSERT INTO org_staff (organization_id, role_key, role_label, name, "
-                "phone, email, notes, sort_order, active) VALUES (?,?,?,?,?,?,?,?,1)",
-                (org_id, "custom", e_role or "תפקיד", e_name, e_phone, e_email,
-                 e_notes, len(staff)),
-            )
-            st.session_state[sel_key] = cur.lastrowid
-            conn.commit()
-            st.rerun()
-        if do_del and sel:
-            conn.execute("DELETE FROM org_staff WHERE id=?", (sel["id"],))
-            conn.commit()
-            st.session_state.pop(sel_key, None)
-            st.rerun()
-
-
 # =====================================================================
 # CAREGIVER VIEW
 # =====================================================================
@@ -549,9 +557,6 @@ def view_caregiver(LANG: str):
             """,
             unsafe_allow_html=True,
         )
-        # ---- institution role-holders: click a role to switch between them ----
-        _render_org_staff(conn, org["id"])
-
         if org_rules and org_rules.strip():
             rules_lines = [ln.strip() for ln in org_rules.split("\n") if ln.strip()]
             with st.expander(f"📋 כללי המוסד ({len(rules_lines)})", expanded=False):
@@ -1404,6 +1409,7 @@ def _render_daily_plan_tab(conn, elder_id, LANG):
         if st.button("✨ " + t("generate_plan", LANG), type="primary", width="stretch"):
             try:
                 result = generate_plan_for_elder(elder_id, plan_date_iso)
+                _stamp_plan_author(conn, elder_id, plan_date_iso)
                 st.success(
                     f"{t('plan_generated', LANG)} - "
                     f"{len(result['items'])} {t('activities_count', LANG)}"
@@ -1418,12 +1424,22 @@ def _render_daily_plan_tab(conn, elder_id, LANG):
         if plan and st.button("🔄 " + t("regenerate", LANG), width="stretch"):
             try:
                 generate_plan_for_elder(elder_id, plan_date_iso)
+                _stamp_plan_author(conn, elder_id, plan_date_iso)
                 st.rerun()
             except Exception as e:
                 import traceback as _tb
                 st.error(t("error_generic", LANG) + str(e))
                 with st.expander("פרטי שגיאה (טכני)"):
                     st.code(_tb.format_exc())
+
+    # who entered this plan (attribution)
+    if plan is not None:
+        _gb = plan["generated_by"] if "generated_by" in plan.keys() else None
+        if _gb:
+            st.markdown(
+                f"<div class='entered-by'>📝 התוכנית הוזנה ע\"י <b>{_gb}</b></div>",
+                unsafe_allow_html=True,
+            )
 
     # manual add picker — visible whether a plan exists or not
     with st.expander("➕ הוסף פעילות ידנית"):
@@ -1768,6 +1784,7 @@ def _render_day_card(conn, elder_id, day_date, day_idx, LANG, name_field, today_
                      key=f"day_gen_{day_date.isoformat()}", width="stretch"):
             try:
                 generate_plan_for_elder(elder_id, day_date.isoformat())
+                _stamp_plan_author(conn, elder_id, day_date.isoformat())
                 st.rerun()
             except Exception as e:
                 st.error(str(e))
@@ -2843,14 +2860,17 @@ def view_tracking(LANG: str):
                     st.warning(f"❌ {t('tracking_not_done', LANG)} · {rlabel}")
                 if it["execution_notes"]:
                     st.caption(f"📝 {it['execution_notes']}")
+                _ub = it["updated_by"] if "updated_by" in it.keys() else None
+                if _ub and (it["executed"] or it["skipped_reason"]):
+                    st.caption(f'✍️ נרשם ע"י {_ub}')
             with cols[1]:
                 if not it["executed"]:
                     if st.button("✅ " + t("tracking_done", LANG),
                                  key=f"tk_done_{it['id']}", width="stretch"):
                         conn.execute(
                             "UPDATE plan_items SET executed=1, "
-                            "executed_at=CURRENT_TIMESTAMP, skipped_reason=NULL "
-                            "WHERE id=?", (it["id"],))
+                            "executed_at=CURRENT_TIMESTAMP, skipped_reason=NULL, "
+                            "updated_by=? WHERE id=?", (_current_user(), it["id"]))
                         conn.commit()
                         st.rerun()
                 else:
@@ -2885,8 +2905,10 @@ def view_tracking(LANG: str):
                                      type="primary", width="stretch"):
                             conn.execute(
                                 "UPDATE plan_items SET executed=0, "
-                                "skipped_reason=?, execution_notes=? WHERE id=?",
-                                (_REASON_STORE.get(reason, "other"), note, it["id"]))
+                                "skipped_reason=?, execution_notes=?, updated_by=? "
+                                "WHERE id=?",
+                                (_REASON_STORE.get(reason, "other"), note,
+                                 _current_user(), it["id"]))
                             conn.commit()
                             st.rerun()
 
@@ -2915,8 +2937,8 @@ def view_tracking(LANG: str):
                              type="primary"):
                     conn.execute(
                         "UPDATE plan_items SET instructor_rating=?, "
-                        "instructor_review=? WHERE id=?",
-                        (int(new_rating), new_review, it["id"]))
+                        "instructor_review=?, updated_by=? WHERE id=?",
+                        (int(new_rating), new_review, _current_user(), it["id"]))
                     conn.commit()
                     st.success(t("instructor_review_saved", LANG))
                     st.rerun()
