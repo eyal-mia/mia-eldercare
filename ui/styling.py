@@ -76,7 +76,8 @@ BASE_CSS = """
   --accent-text: #0e7490;       /* AA-safe cyan for text/links on light bg */
   --canvas: #eef2f8; --card: #ffffff; --ink: #0f172a;
   --muted: #475569;             /* slate-600 → ~7:1 on white (WCAG AA/AAA text) */
-  --line: #dbe1ec;
+  --line: #b4bdcf;              /* visible hairline against white cards + canvas */
+  --line-strong: #94a1b8;       /* clearer outline so every data box is defined */
 }
 
 /* App canvas — soft blue-gray behind bright white cards */
@@ -193,9 +194,9 @@ body { background: var(--canvas); }
 [data-testid="stMain"] [data-testid="stExpander"],
 [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] {
   background: var(--card) !important;
-  border: 1px solid var(--line) !important;
+  border: 1.5px solid var(--line-strong) !important;
   border-radius: 18px !important;
-  box-shadow: 0 10px 30px rgba(15,23,42,0.08) !important;
+  box-shadow: 0 10px 30px rgba(15,23,42,0.10) !important;
   overflow: hidden;
   transition: box-shadow .18s ease, transform .18s ease;
 }
@@ -247,11 +248,13 @@ body { background: var(--canvas); }
 }
 [data-testid="stMain"] .stTabs [aria-selected="true"] * { color: #fff !important; }
 
-/* ---- INPUTS: rounded, brand focus ---- */
+/* ---- INPUTS: rounded, clearly outlined, brand focus ---- */
 [data-testid="stMain"] input, [data-testid="stMain"] textarea,
 [data-testid="stMain"] [data-baseweb="select"] > div,
 [data-testid="stMain"] [data-baseweb="input"] {
   border-radius: 12px !important;
+  border: 1.5px solid var(--line-strong) !important;
+  background: #fff !important;
 }
 
 /* ---- DATAFRAMES: framed card ---- */
@@ -673,6 +676,34 @@ html { scroll-behavior: smooth; }
 [data-testid="stMain"] { direction: rtl; text-align: right; }
 [data-testid="stSidebar"] { direction: rtl; text-align: right; }
 [data-testid="stSidebar"] * { text-align: right; }
+
+/* Streamlit's markdown blocks and widget labels default to LEFT alignment (the
+   document stays LTR to keep the cloud sidebar). Under rtl that made Hebrew text
+   hug the LEFT edge — it read like English. Force it to the right so the whole
+   page reads properly right-to-left. Truly-centered custom cards opt back in with
+   an inline `text-align:center`, which still wins over this. */
+[data-testid="stMain"] [data-testid="stMarkdownContainer"],
+[data-testid="stMain"] [data-testid="stMarkdownContainer"] p,
+[data-testid="stMain"] [data-testid="stMarkdownContainer"] h1,
+[data-testid="stMain"] [data-testid="stMarkdownContainer"] h2,
+[data-testid="stMain"] [data-testid="stMarkdownContainer"] h3,
+[data-testid="stMain"] [data-testid="stMarkdownContainer"] h4,
+[data-testid="stMain"] [data-testid="stMarkdownContainer"] h5,
+[data-testid="stMain"] [data-testid="stMarkdownContainer"] ul,
+[data-testid="stMain"] [data-testid="stMarkdownContainer"] ol,
+[data-testid="stMain"] [data-testid="stMarkdownContainer"] li,
+[data-testid="stMain"] [data-testid="stWidgetLabel"],
+[data-testid="stMain"] [data-testid="stWidgetLabel"] p,
+[data-testid="stMain"] label {
+  text-align: right;
+}
+/* Custom info cards built with raw HTML: right-align their inner text too. */
+[data-testid="stMain"] .eldercare-header,
+[data-testid="stMain"] .eldercare-header .subtitle,
+[data-testid="stMain"] .org-banner,
+[data-testid="stMain"] .resident-banner {
+  text-align: right;
+}
 
 /* Sidebar on the RIGHT (RTL-correct), on every width, via `row-reverse` on the
    top-level [sidebar, main] flex container. The document is kept LTR (only lang

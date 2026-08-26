@@ -411,6 +411,26 @@ def view_caregiver(LANG: str):
     elder = conn.execute("SELECT * FROM elders WHERE id = ?", (elder_id,)).fetchone()
     profile = conn.execute("SELECT * FROM elder_profile WHERE elder_id = ?", (elder_id,)).fetchone()
 
+    # ---- RESIDENT header FIRST (the resident's name leads the screen,
+    #      before the institution info, participation and the tab menu) ----
+    age = ""
+    if elder["birth_date"]:
+        try:
+            _bd = dt.date.fromisoformat(elder["birth_date"])
+            age = f"{(dt.date.today() - _bd).days // 365} שנים"
+        except Exception:
+            pass
+    st.markdown(
+        f"""<div class="eldercare-header">
+        <h2>👤 {elder['full_name']}</h2>
+        <div class="subtitle">
+          {t('room_number', LANG)} {elder['room_number'] or '-'} ·
+          {age} · {t(elder['gender'] or 'other', LANG)} ·
+          {SUPPORTED.get(elder['primary_language'], '-')}
+        </div></div>""",
+        unsafe_allow_html=True,
+    )
+
     # ---- ORGANIZATION (institution) banner ----
     org = conn.execute("""
         SELECT o.* FROM organizations o
@@ -463,27 +483,6 @@ def view_caregiver(LANG: str):
             with st.expander(f"📋 כללי המוסד ({len(rules_lines)})", expanded=False):
                 for ln in rules_lines:
                     st.markdown(f"• {ln}")
-
-    # MIA-style elder header
-    age = ""
-    if elder["birth_date"]:
-        try:
-            birth = dt.date.fromisoformat(elder["birth_date"])
-            age = f"{(dt.date.today() - birth).days // 365} שנים"
-        except Exception:
-            pass
-    st.markdown(
-        f"""<div class="eldercare-header">
-        <h2>👤 {elder['full_name']}</h2>
-        <div class="subtitle">
-          {t('room_number', LANG)} {elder['room_number'] or '-'} ·
-          {age} · {t(elder['gender'] or 'other', LANG)} ·
-          {SUPPORTED.get(elder['primary_language'], '-')}
-        </div></div>""",
-        unsafe_allow_html=True,
-    )
-
-    # (resident prev/next switcher now lives in the sidebar, under the brand)
 
     # ---- participation summary (overall activity participation data) ----
     _pc = (dt.date.today() - dt.timedelta(days=30)).isoformat()

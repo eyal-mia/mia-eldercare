@@ -1424,7 +1424,8 @@ def seed(verbose: bool = True) -> None:
             cur.execute(
                 "INSERT INTO elders (organization_id, full_name, birth_date, gender, "
                 "room_number, primary_language, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (org_id, spec["name"], birth, spec["gender"], spec["room"],
+                # tie every demo resident to נווה שקט (not the generic default org)
+                (ns_id, spec["name"], birth, spec["gender"], spec["room"],
                  spec["lang"], spec["notes"]),
             )
             elder_id = cur.lastrowid
