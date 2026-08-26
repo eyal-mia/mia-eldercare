@@ -177,6 +177,7 @@ def _render_user_login() -> None:
         person = next(
             (s for s in staff if s["id"] == st.session_state.current_user_id), staff[0])
         st.session_state.current_user_name = person["name"]
+        st.session_state.current_user_role = person["role_label"]
         st.markdown(
             f"<div class='sb-user-badge'>✅ <b>{person['name']}</b>"
             f"<br><span>{person['role_label']}</span></div>",
@@ -539,6 +540,20 @@ def view_caregiver(LANG: str):
             org_rules = "\n".join(_rd.read_rules())
         except Exception:
             org_rules = _g("institution_rules")
+        # The person shown in the header = whoever is currently logged in
+        # (the role-holder picked in the sidebar), not a fixed contact —
+        # "the name that matches who is using the system". Falls back to the
+        # institution's stored contact if nobody is logged in.
+        _cur_u = _current_user()
+        _cur_role = (st.session_state.get("current_user_role") or "").strip()
+        if _cur_u:
+            _who = _cur_u + (f" · {_cur_role}" if _cur_role else "")
+            contact_html = (f'<div class="org-banner-contact">'
+                            f'👤 משתמש/ת מחובר/ת: {_who}</div>')
+        elif org_contact:
+            contact_html = f'<div class="org-banner-contact">👤 {org_contact}</div>'
+        else:
+            contact_html = ''
         st.markdown(
             f"""
             <div class="org-banner">
@@ -551,7 +566,7 @@ def view_caregiver(LANG: str):
                 {f'<span>📞 <span class="ltr-text">{org_phone}</span></span>' if org_phone else ''}
                 {f'<span>✉️ <span class="ltr-text">{org_email}</span></span>' if org_email else ''}
               </div>
-              {f'<div class="org-banner-contact">👤 {org_contact}</div>' if org_contact else ''}
+              {contact_html}
               {f'<div class="org-banner-desc">{org_desc}</div>' if org_desc else ''}
             </div>
             """,
