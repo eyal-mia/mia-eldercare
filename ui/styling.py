@@ -263,17 +263,38 @@ body { background: var(--canvas); }
    show its FULL Hebrew label, so selected diagnoses / medications / conditions
    are always fully readable. ---- */
 [data-testid="stMain"] [data-testid="stMultiSelect"] [data-baseweb="select"] > div {
-  padding-inline: 8px !important;
+  overflow: visible !important;        /* the rounded corner must NEVER clip a tag */
+  padding-inline: 6px !important;
 }
+/* Force the tag to lay out RTL in every browser: the label on the RIGHT and the
+   remove-× on the LEFT, with a gap so the × can never cover the first Hebrew
+   letter. (Without this, some browsers keep the tag LTR and the × overlaps the
+   word start — e.g. "חרדה" shows as "רדה".) */
 [data-testid="stMain"] [data-testid="stMultiSelect"] [data-baseweb="tag"] {
+  direction: rtl !important;
+  flex-direction: row !important;
   max-width: none !important;
-  margin: 2px 3px !important;
+  overflow: visible !important;
+  margin: 2px 4px !important;
+  padding-inline-start: 10px !important;   /* space on the label (right) side */
+  padding-inline-end: 4px !important;
+  column-gap: 4px !important;
 }
 [data-testid="stMain"] [data-testid="stMultiSelect"] [data-baseweb="tag"] span[title],
 [data-testid="stMain"] [data-testid="stMultiSelect"] [data-baseweb="tag"] > span {
   max-width: none !important;
   overflow: visible !important;
   text-overflow: clip !important;
+}
+/* Belt-and-suspenders: pin the flex order of the tag's DIRECT children so the
+   label (with title) is first (right in rtl) and the remove-× span is second
+   (left), regardless of how a browser resolves direction on the flex row. */
+[data-testid="stMain"] [data-testid="stMultiSelect"] [data-baseweb="tag"] > span[title] {
+  order: 1 !important;
+}
+[data-testid="stMain"] [data-testid="stMultiSelect"] [data-baseweb="tag"] > span:not([title]) {
+  order: 2 !important;
+  flex: 0 0 auto !important;
 }
 
 /* ---- DATAFRAMES: framed card ---- */
