@@ -11,79 +11,84 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 
+# Domain colour-coding from the MIA design system (forest-teal theme). Each
+# soft background is paired with a deep text colour so category pills stay
+# readable at WCAG 2.0 AA (contrast >= 4.5:1).
 CATEGORY_COLORS = {
-    "sport":      {"bg": "#fef9c3", "border": "#ca8a04", "text": "#713f12", "icon": "🏃"},
-    "physical":   {"bg": "#e0f2fe", "border": "#0284c7", "text": "#0c4a6e", "icon": "💪"},
-    "cognitive":  {"bg": "#f3e8ff", "border": "#9333ea", "text": "#581c87", "icon": "🧠"},
-    "social":     {"bg": "#ccfbf1", "border": "#0d9488", "text": "#134e4a", "icon": "👥"},
-    "mental":     {"bg": "#fce7f3", "border": "#db2777", "text": "#831843", "icon": "🌿"},
-    "medical":    {"bg": "#fee2e2", "border": "#dc2626", "text": "#7f1d1d", "icon": "🏥"},
-    "nursing":    {"bg": "#dbeafe", "border": "#2563eb", "text": "#1e3a8a", "icon": "🩺"},
-    "preferences": {"bg": "#fef3c7", "border": "#d97706", "text": "#78350f", "icon": "⭐"},
-    "external":   {"bg": "#ede9fe", "border": "#6d28d9", "text": "#4c1d95", "icon": "🏛️"},
-    "holiday":    {"bg": "#ffedd5", "border": "#ea580c", "text": "#7c2d12", "icon": "🎉"},
-    "general":    {"bg": "#f3f4f6", "border": "#94a3b8", "text": "#374151", "icon": "📌"},
-    "meal":       {"bg": "#fef3c7", "border": "#f59e0b", "text": "#78350f", "icon": "🍽️"},
+    "sport":      {"bg": "#DBEEE1", "border": "#2A7849", "text": "#14432A", "icon": "🏃"},
+    "physical":   {"bg": "#E1EAF5", "border": "#2E68A8", "text": "#163A5C", "icon": "💪"},
+    "cognitive":  {"bg": "#ECE4F5", "border": "#7A4FAA", "text": "#3B2659", "icon": "🧠"},
+    "social":     {"bg": "#F5E9D6", "border": "#A15F0C", "text": "#5C3607", "icon": "👥"},
+    "mental":     {"bg": "#F5DFE7", "border": "#AE4069", "text": "#5E2239", "icon": "🌿"},
+    "medical":    {"bg": "#F5DDD9", "border": "#AE3529", "text": "#5E1C16", "icon": "🏥"},
+    "nursing":    {"bg": "#D8E9E1", "border": "#1D6A56", "text": "#0E3A2E", "icon": "🩺"},
+    "preferences": {"bg": "#F4E7CD", "border": "#935A0B", "text": "#5A3707", "icon": "⭐"},
+    "external":   {"bg": "#E7ECD6", "border": "#55652A", "text": "#333D18", "icon": "🏛️"},
+    "holiday":    {"bg": "#F4E7CD", "border": "#935A0B", "text": "#5A3707", "icon": "🎉"},
+    "general":    {"bg": "#E4EAE5", "border": "#66766F", "text": "#2B3A33", "icon": "📌"},
+    "meal":       {"bg": "#F4E7CD", "border": "#935A0B", "text": "#5A3707", "icon": "🍽️"},
 }
 
 
 # Base CSS that applies for all languages.
 BASE_CSS = """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&family=IBM+Plex+Sans+Hebrew:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
 /* ---- SCROLLBAR (thick, always-visible, elderly-friendly) ---- */
-* { scrollbar-width: auto; scrollbar-color: #2563eb #e0e7ff; }
+* { scrollbar-width: auto; scrollbar-color: #1D6A56 #D8E9E1; }
 ::-webkit-scrollbar { width: 18px !important; height: 18px !important; }
 ::-webkit-scrollbar-track {
-  background: #e0e7ff !important;
+  background: #D8E9E1 !important;
   border-radius: 9px !important;
 }
 ::-webkit-scrollbar-thumb {
-  background: #2563eb !important;
+  background: #1D6A56 !important;
   border-radius: 9px !important;
-  border: 3px solid #e0e7ff !important;
+  border: 3px solid #D8E9E1 !important;
   min-height: 60px !important;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #1e3a8a !important;
-  border-color: #c7d2fe !important;
+  background: #155445 !important;
+  border-color: #c4ddd2 !important;
 }
-::-webkit-scrollbar-corner { background: #e0e7ff !important; }
+::-webkit-scrollbar-corner { background: #D8E9E1 !important; }
 
 /* "Back to top" floating button — replaces tiny scrollbar grabbing */
 .back-to-top-link {
   position: fixed; bottom: 28px; right: 28px;
   width: 56px; height: 56px;
-  background: #2563eb; color: white !important;
+  background: #1D6A56; color: white !important;
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   font-size: 1.7rem; font-weight: 700;
   text-decoration: none !important;
-  box-shadow: 0 6px 20px rgba(30, 64, 175, 0.35);
+  box-shadow: 0 6px 20px rgba(20, 33, 28, 0.28);
   z-index: 9999;
   transition: transform 0.15s, box-shadow 0.15s;
 }
 .back-to-top-link:hover {
   transform: translateY(-3px);
-  box-shadow: 0 10px 28px rgba(30, 64, 175, 0.45);
-  background: #1e40af; color: white !important;
+  box-shadow: 0 10px 28px rgba(20, 33, 28, 0.38);
+  background: #155445; color: white !important;
 }
 
 /* ============ WEBSITE THEME — bold, modern SaaS look ============ */
 :root {
-  --brand: #4f46e5; --brand-2: #6366f1; --brand-dark: #3730a3;
-  --accent: #06b6d4;            /* decorative only (gradients/rails), never text */
-  --accent-text: #0e7490;       /* AA-safe cyan for text/links on light bg */
-  --canvas: #eef2f8; --card: #ffffff; --ink: #0f172a;
-  --muted: #475569;             /* slate-600 → ~7:1 on white (WCAG AA/AAA text) */
-  --line: #b4bdcf;              /* visible hairline against white cards + canvas */
-  --line-strong: #94a1b8;       /* clearer outline so every data box is defined */
+  --brand: #1D6A56; --brand-2: #268A6E; --brand-dark: #155445;
+  --accent: #1D6A56;            /* decorative only (gradients/rails) */
+  --accent-text: #155445;       /* AA-safe forest green for text/links on light bg */
+  --accent-soft: #D8E9E1;       /* soft tint for active-nav / highlights */
+  --canvas: #EDF1ED; --card: #ffffff; --raised: #F6F8F5; --ink: #14211C;
+  --muted: #44554E;             /* ~7:1 on white (WCAG AA/AAA text) */
+  --line: #D2DBD4;              /* sage hairline against white cards + canvas */
+  --line-strong: #B2C1B7;       /* clearer outline so every data box is defined */
+  --f-display: 'Frank Ruhl Libre', 'David Libre', 'Times New Roman', serif;
 }
 
-/* App canvas — soft blue-gray behind bright white cards */
+/* App canvas — soft sage behind bright white cards */
 [data-testid="stApp"], [data-testid="stAppViewContainer"] {
   background:
-    radial-gradient(1200px 500px at 100% -10%, #dbe4fb 0%, transparent 60%),
+    radial-gradient(1200px 500px at 100% -10%, #dce9e2 0%, transparent 60%),
     var(--canvas) !important;
 }
 body { background: var(--canvas); }
@@ -104,14 +109,14 @@ body { background: var(--canvas); }
     background: linear-gradient(90deg, var(--brand-dark), var(--brand), var(--accent)) !important;
     height: 0.42rem !important;
     min-height: 0.42rem !important;
-    box-shadow: 0 2px 12px rgba(79,70,229,0.35);
+    box-shadow: 0 2px 12px rgba(20,33,28,0.35);
   }
 }
 
 /* ---- SIDEBAR as a bold branded nav rail ---- */
 [data-testid="stSidebar"] {
-  background: linear-gradient(180deg, #ffffff 0%, #f4f6fc 100%) !important;
-  box-shadow: -10px 0 30px rgba(15,23,42,0.07);
+  background: linear-gradient(180deg, #ffffff 0%, #F6F8F5 100%) !important;
+  box-shadow: -10px 0 30px rgba(20,33,28,0.07);
   border-inline-start: 1px solid var(--line);
 }
 /* Brand logo block (rendered from app.py as .brand-logo) */
@@ -119,7 +124,7 @@ body { background: var(--canvas); }
   background: linear-gradient(135deg, var(--brand-dark), var(--brand) 55%, var(--accent));
   color: #fff; border-radius: 16px;
   padding: 1rem 1.1rem; margin-bottom: 1rem;
-  box-shadow: 0 8px 22px rgba(79,70,229,0.35);
+  box-shadow: 0 8px 22px rgba(20,33,28,0.35);
   display: flex; align-items: center; gap: 0.6rem;
 }
 .brand-logo .logo-emoji { font-size: 2rem; line-height: 1; }
@@ -154,7 +159,7 @@ body { background: var(--canvas); }
   transition: all .15s ease;
 }
 [data-testid="stSidebar"] .stButton button:hover {
-  background: #eef2ff !important; border-color: #c7d2fe !important;
+  background: var(--accent-soft) !important; border-color: var(--line-strong) !important;
   transform: translateX(-3px);
 }
 /* ---- ACTIVE nav item: strong, unmistakable highlight ----
@@ -168,7 +173,7 @@ body { background: var(--canvas); }
   border-inline-start: 6px solid var(--accent) !important;  /* bright rail on the leading edge */
   color: #fff !important;
   font-weight: 800 !important;
-  box-shadow: 0 10px 24px rgba(79,70,229,0.5) !important;
+  box-shadow: 0 10px 24px rgba(20,33,28,0.5) !important;
   transform: scale(1.03);
 }
 [data-testid="stSidebar"] .stButton button[data-testid="stBaseButton-primary"]:hover {
@@ -207,7 +212,7 @@ body { background: var(--canvas); }
 
 /* ---- METRICS: gradient stat cards with brand accent ---- */
 [data-testid="stMetric"] {
-  background: linear-gradient(180deg, #ffffff, #f7f9ff);
+  background: linear-gradient(180deg, #ffffff, #F6F8F5);
   border: 1px solid var(--line);
   border-inline-start: 5px solid var(--brand);
   border-radius: 16px; padding: 0.9rem 1.1rem;
@@ -221,7 +226,7 @@ body { background: var(--canvas); }
   background: linear-gradient(135deg, var(--brand), var(--brand-2)) !important;
   border: none !important; color: #fff !important;
   border-radius: 12px !important;
-  box-shadow: 0 8px 20px rgba(79,70,229,0.35) !important;
+  box-shadow: 0 8px 20px rgba(20,33,28,0.35) !important;
 }
 [data-testid="stMain"] [data-testid="stBaseButton-primary"]:hover,
 [data-testid="stMain"] [data-testid="stBaseButton-primaryFormSubmit"]:hover {
@@ -233,8 +238,11 @@ body { background: var(--canvas); }
   background: #fff !important;
 }
 
-/* ---- HEADINGS: brand color ---- */
-[data-testid="stMain"] h1, [data-testid="stMain"] h2 { color: var(--brand-dark) !important; }
+/* ---- HEADINGS: brand color + serif display face ---- */
+[data-testid="stMain"] h1, [data-testid="stMain"] h2 {
+  color: var(--brand-dark) !important;
+  font-family: var(--f-display) !important;
+}
 
 /* ---- TABS: modern pill bar ---- */
 [data-testid="stMain"] .stTabs [data-baseweb="tab-list"] {
@@ -315,14 +323,15 @@ body { background: var(--canvas); }
 }
 
 /* ---- ELDERLY-FRIENDLY TYPOGRAPHY ---- */
-/* 'Assistant' — a highly legible Hebrew+Latin humanist sans (by an Israeli type
-   designer), chosen for clarity and accessibility. Loaded from Google Fonts in
-   inject(); robust system fallbacks if it can't load. */
+/* 'IBM Plex Sans Hebrew' — the MIA design system's UI face: a clean, highly
+   legible Hebrew+Latin humanist sans chosen for clarity and accessibility.
+   Loaded from Google Fonts in inject(); robust system fallbacks if it can't
+   load. (Headings use 'Frank Ruhl Libre' — see --f-display.) */
 html, body,
 [class*="st-"]:not([data-testid="stIconMaterial"]),
 button, input, textarea, select,
 [data-testid="stMarkdownContainer"] {
-  font-family: 'Assistant', system-ui, 'Segoe UI', 'Arial', sans-serif;
+  font-family: 'IBM Plex Sans Hebrew', 'IBM Plex Sans', system-ui, 'Segoe UI', 'Arial', sans-serif;
   font-size: 17px;
   line-height: 1.6;                 /* >= 1.5 for readability (WCAG 1.4.8) */
 }
@@ -396,26 +405,26 @@ h4 { font-size: 1.15rem !important; font-weight: 600 !important; }
 [data-testid="stApp"] [data-baseweb="tab"]:focus,
 [data-testid="stApp"] [tabindex]:focus,
 [data-testid="stSidebar"] .stButton button:focus {
-  outline: 3px solid #1e3a8a !important;
+  outline: 3px solid #155445 !important;
   outline-offset: 2px !important;
   /* box-shadow ring survives Streamlit's outline resets, so the focus is
      always visible (a white gap + a strong blue ring on any background) */
-  box-shadow: 0 0 0 3px #ffffff, 0 0 0 6px #1e3a8a !important;
+  box-shadow: 0 0 0 3px #ffffff, 0 0 0 6px #155445 !important;
   border-radius: 6px !important;
 }
 [data-baseweb="select"]:focus-within,
 [data-baseweb="input"]:focus-within {
-  outline: 3px solid #1e3a8a !important;
+  outline: 3px solid #155445 !important;
   outline-offset: 1px !important;
 }
 
 /* 1.4.1 Use of Colour — in-content links carry an underline, not colour alone */
 [data-testid="stMain"] a:not(.back-to-top-link):not([class*="brand"]) {
-  color: #3730a3;
+  color: var(--accent-text);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
-[data-testid="stMain"] a:not(.back-to-top-link):hover { color: #1e3a8a; }
+[data-testid="stMain"] a:not(.back-to-top-link):hover { color: #155445; }
 
 /* 2.3.3 / respect the OS "reduce motion" setting */
 @media (prefers-reduced-motion: reduce) {
@@ -435,7 +444,7 @@ h4 { font-size: 1.15rem !important; font-weight: 600 !important; }
 }
 .skip-link {
   position: fixed; top: -80px; inset-inline-start: 12px; z-index: 100000;
-  background: #1e3a8a; color: #fff !important; padding: 0.65rem 1.1rem;
+  background: #155445; color: #fff !important; padding: 0.65rem 1.1rem;
   border-radius: 0 0 10px 10px; text-decoration: none !important;
   font-weight: 700; font-size: 1.05rem; transition: top 0.15s;
 }
@@ -455,8 +464,8 @@ h4 { font-size: 1.15rem !important; font-weight: 600 !important; }
   white-space: nowrap !important;
 }
 .stTabs [data-baseweb="tab"][aria-selected="true"] {
-  background: #dbeafe !important;
-  border-bottom: 3px solid #2563eb !important;
+  background: var(--accent-soft) !important;
+  border-bottom: 3px solid var(--brand) !important;
 }
 
 /* Sidebar text */
@@ -526,26 +535,26 @@ h4 { font-size: 1.15rem !important; font-weight: 600 !important; }
 /* ---- Resident banner (sub-views: goals / daily / weekly / tracking) ---- */
 .resident-banner {
   display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;
-  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
-  border: 1px solid #c7d2fe;
-  border-inline-start: 6px solid var(--brand, #4f46e5);
+  background: linear-gradient(135deg, #F6F8F5 0%, var(--accent-soft) 100%);
+  border: 1px solid var(--line-strong);
+  border-inline-start: 6px solid var(--brand);
   border-radius: 12px;
   padding: 0.6rem 1rem;
   margin: 0.2rem 0 1rem;
-  font-size: 1.15rem; color: #1e3a8a;
-  box-shadow: 0 4px 14px rgba(79,70,229,0.12);
+  font-size: 1.15rem; color: #155445;
+  box-shadow: 0 4px 14px rgba(20,33,28,0.12);
 }
-.resident-banner .rb-room { font-size: 0.95rem; color: #4338ca; font-weight: 600; }
-.resident-banner .rb-hint { font-size: 0.8rem; color: #6366f1; opacity: 0.8; }
+.resident-banner .rb-room { font-size: 0.95rem; color: var(--accent-text); font-weight: 600; }
+.resident-banner .rb-hint { font-size: 0.8rem; color: var(--muted); opacity: 0.85; }
 
 /* ---- Header band ---- */
 .eldercare-header {
-  background: linear-gradient(135deg, #3730a3 0%, #4f46e5 55%, #06b6d4 120%);
+  background: linear-gradient(135deg, var(--brand-dark) 0%, var(--brand) 55%, var(--brand-2) 120%);
   color: white;
   padding: 1.7rem 1.9rem;
   border-radius: 18px;
   margin-bottom: 1.2rem;
-  box-shadow: 0 14px 34px rgba(79, 70, 229, 0.32);
+  box-shadow: 0 14px 34px rgba(20, 33, 28, 0.32);
 }
 .eldercare-header h2 { margin: 0 0 0.3rem 0; font-size: 1.8rem; color: white !important; }
 .eldercare-header .subtitle { opacity: 0.92; font-size: 1.02rem; }
@@ -553,7 +562,7 @@ h4 { font-size: 1.15rem !important; font-weight: 600 !important; }
 /* ---- Day cards (weekly view) ---- */
 .day-card {
   background: white;
-  border: 2px solid #e5e7eb;
+  border: 2px solid var(--line);
   border-radius: 14px;
   padding: 1.1rem;
   margin-bottom: 0.85rem;
@@ -566,10 +575,10 @@ h4 { font-size: 1.15rem !important; font-weight: 600 !important; }
 }
 .day-badge {
   display: inline-flex; align-items: center; gap: 0.5rem;
-  font-weight: 700; color: #1e3a8a; font-size: 1.05rem;
+  font-weight: 700; color: #155445; font-size: 1.05rem;
 }
 .day-number {
-  background: #2563eb; color: white;
+  background: var(--brand); color: white;
   border-radius: 999px;
   width: 32px; height: 32px;
   display: inline-flex; align-items: center; justify-content: center;
@@ -578,8 +587,8 @@ h4 { font-size: 1.15rem !important; font-weight: 600 !important; }
 .day-date { color: #4b5563; font-size: 0.92rem; }
 .day-stats { font-size: 0.9rem; color: #4b5563; font-weight: 600; }
 .day-today {
-  border-color: #2563eb !important;
-  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.18);
+  border-color: var(--brand) !important;
+  box-shadow: 0 6px 18px rgba(29, 106, 86, 0.18);
 }
 
 /* ---- Activity item ---- */
