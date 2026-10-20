@@ -63,7 +63,6 @@
   "goal_source_manual": "ידני",
   "goal_active": "פעיל",
   "goals_saved": "היעדים נשמרו",
-
   "language": "שפה",
   "save": "שמור",
   "cancel": "ביטול",
@@ -74,10 +73,8 @@
   "delete": "מחק",
   "yes": "כן",
   "no": "לא",
-  "back": "חזרה",
   "add": "הוסף",
   "edit": "ערוך",
-
   "select_elder": "בחר דייר/ת",
   "no_elder_selected": "לא נבחר דייר/ת",
   "add_elder": "הוסף דייר/ת חדש",
@@ -89,7 +86,6 @@
   "room_number": "מספר חדר",
   "primary_language": "שפה ראשית",
   "notes": "הערות",
-
   "dim_medical": "רפואי",
   "dim_medication": "תרופתי",
   "dim_nursing": "סיעודי",
@@ -115,26 +111,21 @@
   "outdoor_full": "מלאה",
   "outdoor_limited": "מוגבלת",
   "outdoor_none": "אין",
-
   "weights_section": "משקלים (חשיבות יחסית)",
   "weights_help": "קבע 1=פחות חשוב ... 10=חיוני. המודל ישקלל בהתאם.",
   "capability_level": "רמת תפקוד (1-5)",
   "capability_help": "1=תלוי מלא, 5=עצמאי לחלוטין",
-
   "preferences_categories": "קטגוריות פעילות מועדפות",
   "preferences_time_slots": "שעות מועדפות",
   "preferred_activities": "פעילויות רצויות (יקבלו עדיפות בתוכנית)",
   "preferred_activities_help": "פעילויות שהדייר/ת או המשפחה ביקשו במפורש - מקבלות בונוס משקל מוגבר בתכנון",
-
   "diseases_codes": "אבחנות / מחלות",
   "medications_codes": "תרופות",
   "conditions_codes": "מצבים סיעודיים/קוגניטיביים/אחר",
-
   "time_morning": "בוקר",
   "time_noon": "צהריים",
   "time_afternoon": "אחר הצהריים",
   "time_evening": "ערב",
-
   "plan_for_date": "תוכנית ל-",
   "generate_plan": "צור תוכנית חדשה",
   "no_plan_today": "אין תוכנית עדיין. לחץ על 'צור תוכנית חדשה' כדי להפיק תוכנית.",
@@ -151,7 +142,6 @@
   "mark_skipped": "סמן כלא בוצע",
   "save_notes": "שמור הערות",
   "regenerate_with_alternatives": "מצא חלופות (אחרי דילוג)",
-
   "obj_score": "ציון אופטימיזציה",
   "limitations_found": "מגבלות שזוהו",
   "needs_found": "צרכים שזוהו",
@@ -159,7 +149,6 @@
   "activities_count": "פעילויות",
   "completed_count": "בוצעו",
   "no_activities_day": "אין פעילויות מתוכננות ליום זה",
-
   "measurement_test": "מבחן",
   "measurement_score": "ציון",
   "measurement_date": "תאריך",
@@ -169,7 +158,6 @@
   "test_barthel": "Barthel - מדד תפקוד (0-100)",
   "test_mood": "מצב רוח (1-10)",
   "test_pain": "כאב (0-10)",
-
   "report_summary": "דוח סיכום",
   "report_export_word": "ייצוא Word",
   "report_export_pdf": "ייצוא PDF",
@@ -177,28 +165,23 @@
   "report_period_days": "תקופה (ימים אחורה)",
   "report_executions": "אחוז ביצוע",
   "report_measurements_trend": "מגמת מבחני יכולת",
-
   "import_pdf": "ייבוא מ-PDF",
   "import_excel": "ייבוא מ-Excel",
   "import_word": "ייבוא מ-Word",
   "import_help": "טען קובץ של הדייר/ת - המערכת תנסה לחלץ אבחנות, תרופות, הערות",
-
   "kb_diseases_count": "מחלות בבנק",
   "kb_medications_count": "תרופות בבנק",
   "kb_conditions_count": "מצבים בבנק",
   "kb_activities_count": "פעילויות בבנק",
   "refresh_kb": "רענן בנקי ידע מ-Excel",
-
   "saved_ok": "נשמר בהצלחה",
   "error_generic": "שגיאה: ",
   "elder_added": "הדייר/ת נוסף בהצלחה",
   "profile_saved": "הפרופיל נשמר",
   "plan_generated": "התוכנית נוצרה",
-
   "executed_total": "סה\"כ בוצעו",
   "skipped_total": "סה\"כ דולגו",
   "completion_rate": "אחוז ביצוע",
-
   "external_programs": "תוכניות פעילות בסביבה",
   "add_external_program": "הוסף תוכנית חיצונית",
   "program_name": "שם התוכנית",
@@ -207,7 +190,6 @@
   "program_contact": "איש קשר",
   "program_cost": "עלות",
   "program_languages": "שפות",
-
   "day_sunday": "ראשון",
   "day_monday": "שני",
   "day_tuesday": "שלישי",
@@ -221,7 +203,6 @@
   "generate_weekly": "צור תוכנית שבועית",
   "generating": "מייצר...",
   "week_range": "שבוע",
-
   "cat_physical": "פיזית",
   "cat_cognitive": "קוגניטיבית",
   "cat_social": "חברתית",
@@ -231,7 +212,6 @@
   "cat_sport": "ספורט",
   "kb_exercises_count": "תרגילים בבנק",
   "exercises_section": "תרגילי כוח ואירובים",
-
   "family_contacts": "בני משפחה ואנשי קשר",
   "family_relation": "קשר",
   "family_name": "שם",
@@ -255,7 +235,6 @@
   "rel_friend": "חבר/ה",
   "rel_other": "אחר",
   "primary_badge": "עיקרי",
-
   "weight_level_minimal": "לא חשוב",
   "weight_level_low": "חשוב מעט",
   "weight_level_medium": "חשוב",
@@ -273,7 +252,6 @@
   "meal_dinner": "ארוחת ערב",
   "meal_time": "שעה",
   "meal_duration": "משך (דק׳)",
-
   "tab_short_profile": "פרופיל",
   "tab_short_culture": "תרבות",
   "tab_short_family": "משפחה",
@@ -299,5 +277,43 @@
   "religion_preview": "מה יתווסף לתוכנית הפעילות:",
   "religion_limitations_label": "מגבלות שייווצרו",
   "religion_needs_label": "צרכים שיחוזקו",
-  "religion_no_limits": "אין מגבלות נוספות"
+  "religion_no_limits": "אין מגבלות נוספות",
+  "sb_staff_title": "בעלי תפקידים",
+  "sb_permission": "הרשאה",
+  "nav_staff": "בעלי תפקידים והרשאות",
+  "ph_caregiver": "כל המידע על הדייר/ת, מחולק לפי תחומים. כל לשונית נשמרת בכפתור שלה.",
+  "ph_goals": "יעדי הטיפול נגזרים מהפרופיל. אפשר לערוך, להוסיף ולמחוק.",
+  "ph_weekly": "שבוע של שבעה ימים. הפקה לכל השבוע או ליום בודד.",
+  "ph_daily": "התוכנית ליום שנבחר לפי חלונות זמן, עם סימון ביצוע.",
+  "ph_tracking": "ביצוע, סיבות אי-ביצוע וחוות דעת המדריך/ה.",
+  "ph_manager": "תמונת מצב של המוסד: דיירים, יעדים, תכנון קבוצתי, גרפים ודוחות.",
+  "ph_rules": "כללי המוסד נשמרים בקובץ Word. כללי זמן נאכפים אוטומטית בתכנון.",
+  "ph_knowledge": "הבנקים שעליהם התכנון מתבסס, ומאגרי מידע מקוונים.",
+  "ph_staff": "מי משתמש במערכת, באיזה תפקיד, ומה כל הרשאה מאפשרת.",
+  "ph_accessibility": "הצהרת נגישות לפי התקנות ות״י 5568.",
+  "tab_medical": "רפואי וסיעודי",
+  "tab_social_family": "חברתי ומשפחה",
+  "tab_living_meals": "מגורים וארוחות",
+  "tab_prefs_weights": "העדפות ומשקלות",
+  "mgr_tab_overview": "סקירה",
+  "mgr_tab_goals": "השגת יעדים",
+  "mgr_tab_planning": "תכנון למוסד",
+  "mgr_tab_charts": "גרפים",
+  "mgr_tab_reports": "דוחות",
+  "active_residents": "דיירים פעילים",
+  "per_elder_summary": "סיכום לפי דייר/ת",
+  "download": "הורדה",
+  "kb_tab_diseases": "מחלות",
+  "kb_tab_medications": "תרופות",
+  "kb_tab_conditions": "מצבים",
+  "kb_tab_activities": "פעילויות",
+  "why_label": "שובץ כי:",
+  "health": "מצב בריאותי",
+  "cat_meal": "ארוחה",
+  "cat_external": "פעילות סביבתית",
+  "cat_holiday": "חג",
+  "cat_general": "כללי",
+  "prev_short": "הקודם",
+  "next_short": "הבא",
+  "open_day": "פתיחה"
 }

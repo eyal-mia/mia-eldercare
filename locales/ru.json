@@ -63,7 +63,6 @@
   "goal_source_manual": "Вручную",
   "goal_active": "Активна",
   "goals_saved": "Цели сохранены",
-
   "language": "Язык",
   "save": "Сохранить",
   "cancel": "Отмена",
@@ -74,10 +73,8 @@
   "delete": "Удалить",
   "yes": "Да",
   "no": "Нет",
-  "back": "Назад",
   "add": "Добавить",
   "edit": "Редактировать",
-
   "select_elder": "Выберите подопечного",
   "no_elder_selected": "Подопечный не выбран",
   "add_elder": "Добавить нового подопечного",
@@ -89,7 +86,6 @@
   "room_number": "Номер комнаты",
   "primary_language": "Основной язык",
   "notes": "Заметки",
-
   "dim_medical": "Медицинское",
   "dim_medication": "Лекарства",
   "dim_nursing": "Уход",
@@ -115,26 +111,21 @@
   "outdoor_full": "Полный",
   "outdoor_limited": "Ограниченный",
   "outdoor_none": "Отсутствует",
-
   "weights_section": "Веса (относительная важность)",
   "weights_help": "1 = менее важно ... 10 = критически важно. Оптимизатор взвешивает соответственно.",
   "capability_level": "Уровень функциональности (1-5)",
   "capability_help": "1 = полностью зависим, 5 = полностью независим",
-
   "preferences_categories": "Предпочитаемые категории активности",
   "preferences_time_slots": "Предпочитаемое время",
   "preferred_activities": "Желаемые активности (повышенный приоритет в плане)",
   "preferred_activities_help": "Активности, прямо запрошенные подопечным или семьёй — получают увеличенный весовой бонус",
-
   "diseases_codes": "Диагнозы / Заболевания",
   "medications_codes": "Лекарства",
   "conditions_codes": "Условия (уход/когнитивные/прочие)",
-
   "time_morning": "Утро",
   "time_noon": "Полдень",
   "time_afternoon": "После полудня",
   "time_evening": "Вечер",
-
   "plan_for_date": "План на ",
   "generate_plan": "Создать новый план",
   "no_plan_today": "Нет плана. Нажмите «Создать новый план».",
@@ -150,7 +141,6 @@
   "mark_done": "Отметить выполненным",
   "mark_skipped": "Отметить пропущенным",
   "save_notes": "Сохранить заметки",
-
   "obj_score": "Оценка оптимизации",
   "limitations_found": "Найдено ограничений",
   "needs_found": "Найдено потребностей",
@@ -158,7 +148,6 @@
   "activities_count": "Активностей",
   "completed_count": "Выполнено",
   "no_activities_day": "На этот день нет запланированных активностей",
-
   "measurement_test": "Тест",
   "measurement_score": "Результат",
   "measurement_date": "Дата",
@@ -168,7 +157,6 @@
   "test_barthel": "Barthel — Индекс функционирования (0-100)",
   "test_mood": "Настроение (1-10)",
   "test_pain": "Боль (0-10)",
-
   "report_summary": "Сводный отчёт",
   "report_export_word": "Экспорт в Word",
   "report_export_pdf": "Экспорт в PDF",
@@ -176,28 +164,23 @@
   "report_period_days": "Период (дней назад)",
   "report_executions": "Доля выполнения",
   "report_measurements_trend": "Динамика тестов",
-
   "import_pdf": "Импорт PDF",
   "import_excel": "Импорт Excel",
   "import_word": "Импорт Word",
   "import_help": "Загрузите файл подопечного — система попытается извлечь диагнозы, лекарства и заметки",
-
   "kb_diseases_count": "Заболеваний в базе",
   "kb_medications_count": "Лекарств в базе",
   "kb_conditions_count": "Условий в базе",
   "kb_activities_count": "Активностей в базе",
   "refresh_kb": "Обновить базы знаний из Excel",
-
   "saved_ok": "Сохранено",
   "error_generic": "Ошибка: ",
   "elder_added": "Подопечный добавлен",
   "profile_saved": "Профиль сохранён",
   "plan_generated": "План создан",
-
   "executed_total": "Всего выполнено",
   "skipped_total": "Всего пропущено",
   "completion_rate": "Доля выполнения",
-
   "external_programs": "Локальные программы",
   "add_external_program": "Добавить внешнюю программу",
   "program_name": "Название программы",
@@ -206,7 +189,6 @@
   "program_contact": "Контактное лицо",
   "program_cost": "Стоимость",
   "program_languages": "Языки",
-
   "day_sunday": "Воскресенье",
   "day_monday": "Понедельник",
   "day_tuesday": "Вторник",
@@ -220,7 +202,6 @@
   "generate_weekly": "Создать план на неделю",
   "generating": "Создаём...",
   "week_range": "Неделя",
-
   "cat_physical": "Физическая",
   "cat_cognitive": "Когнитивная",
   "cat_social": "Социальная",
@@ -230,7 +211,6 @@
   "cat_sport": "Спорт",
   "kb_exercises_count": "Упражнений в базе",
   "exercises_section": "Силовые и аэробные упражнения",
-
   "family_contacts": "Семья и контакты",
   "family_relation": "Степень родства",
   "family_name": "Имя",
@@ -254,7 +234,6 @@
   "rel_friend": "Друг/Подруга",
   "rel_other": "Другое",
   "primary_badge": "Главный",
-
   "weight_level_minimal": "Неважно",
   "weight_level_low": "Слегка важно",
   "weight_level_medium": "Важно",
@@ -272,7 +251,6 @@
   "meal_dinner": "Ужин",
   "meal_time": "Время",
   "meal_duration": "Длительность (мин)",
-
   "tab_short_profile": "Профиль",
   "tab_short_culture": "Культура",
   "tab_short_family": "Семья",
@@ -298,5 +276,43 @@
   "religion_preview": "Что будет добавлено в план:",
   "religion_limitations_label": "Производные ограничения",
   "religion_needs_label": "Усиливаемые потребности",
-  "religion_no_limits": "Дополнительных ограничений нет"
+  "religion_no_limits": "Дополнительных ограничений нет",
+  "sb_staff_title": "Сотрудники",
+  "sb_permission": "Доступ",
+  "nav_staff": "Сотрудники и доступ",
+  "ph_caregiver": "Вся информация о жильце по разделам.",
+  "ph_goals": "Цели ухода на основе профиля.",
+  "ph_weekly": "Неделя целиком. Создание на неделю или на день.",
+  "ph_daily": "План на выбранный день с отметкой выполнения.",
+  "ph_tracking": "Выполнение, причины и отзывы инструктора.",
+  "ph_manager": "Обзор учреждения.",
+  "ph_rules": "Правила учреждения в файле Word.",
+  "ph_knowledge": "Базы знаний и онлайн-источники.",
+  "ph_staff": "Пользователи, роли и права.",
+  "ph_accessibility": "Заявление о доступности.",
+  "tab_medical": "Медицина и уход",
+  "tab_social_family": "Социальное и семья",
+  "tab_living_meals": "Проживание и питание",
+  "tab_prefs_weights": "Предпочтения и веса",
+  "mgr_tab_overview": "Обзор",
+  "mgr_tab_goals": "Достижение целей",
+  "mgr_tab_planning": "Планирование",
+  "mgr_tab_charts": "Графики",
+  "mgr_tab_reports": "Отчёты",
+  "active_residents": "Активные жильцы",
+  "per_elder_summary": "Сводка по жильцам",
+  "download": "Скачать",
+  "kb_tab_diseases": "Заболевания",
+  "kb_tab_medications": "Лекарства",
+  "kb_tab_conditions": "Состояния",
+  "kb_tab_activities": "Занятия",
+  "why_label": "Почему:",
+  "health": "Здоровье",
+  "cat_meal": "Приём пищи",
+  "cat_external": "Внешнее занятие",
+  "cat_holiday": "Праздник",
+  "cat_general": "Общее",
+  "prev_short": "Назад",
+  "next_short": "Далее",
+  "open_day": "Открыть"
 }

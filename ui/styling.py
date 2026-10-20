@@ -31,719 +31,565 @@ CATEGORY_COLORS = {
 
 
 # Base CSS that applies for all languages.
+# Design: calm, modern SaaS — white cards on a light neutral canvas, one brand
+# colour (forest teal), clear hierarchy, no heavy gradients. The accessibility
+# rules (focus ring, contrast, reduced motion, skip link) are kept as-is.
 BASE_CSS = """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&family=IBM+Plex+Sans+Hebrew:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
-/* ---- SCROLLBAR (thick, always-visible, elderly-friendly) ---- */
-* { scrollbar-width: auto; scrollbar-color: #1D6A56 #D8E9E1; }
-::-webkit-scrollbar { width: 18px !important; height: 18px !important; }
-::-webkit-scrollbar-track {
-  background: #D8E9E1 !important;
-  border-radius: 9px !important;
-}
-::-webkit-scrollbar-thumb {
-  background: #1D6A56 !important;
-  border-radius: 9px !important;
-  border: 3px solid #D8E9E1 !important;
-  min-height: 60px !important;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #155445 !important;
-  border-color: #c4ddd2 !important;
-}
-::-webkit-scrollbar-corner { background: #D8E9E1 !important; }
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Hebrew:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
 
-/* "Back to top" floating button — replaces tiny scrollbar grabbing */
+:root {
+  --brand: #1D6A56; --brand-600: #175746; --brand-700: #124437;
+  --brand-50: #EEF6F2; --brand-100: #DCEDE5; --brand-200: #BBDACB;
+  --ink: #13201B; --ink-2: #33433D; --muted: #56665F;
+  --line: #E2E8E4; --line-2: #CBD5CF;
+  --canvas: #F4F6F5; --card: #FFFFFF; --soft: #F2F5F3;
+  --accent-soft: var(--brand-50); --accent-text: var(--brand-700);
+  --r-lg: 16px; --r-md: 12px; --r-sm: 8px;
+  --sh-sm: 0 1px 2px rgba(16,24,40,.05);
+  --sh-md: 0 4px 14px rgba(16,24,40,.06);
+}
+
+/* ---- SCROLLBAR (visible, not oversized) ---- */
+* { scrollbar-width: auto; scrollbar-color: #9DB5AA transparent; }
+::-webkit-scrollbar { width: 12px !important; height: 12px !important; }
+::-webkit-scrollbar-track { background: transparent !important; }
+::-webkit-scrollbar-thumb {
+  background: #A9BFB4 !important; border-radius: 8px !important;
+  border: 3px solid var(--canvas) !important; min-height: 48px !important;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--brand) !important; }
+
+/* "Back to top" floating button */
 .back-to-top-link {
-  position: fixed; bottom: 28px; right: 28px;
-  width: 56px; height: 56px;
-  background: #1D6A56; color: white !important;
+  position: fixed; bottom: 24px; right: 24px;
+  width: 46px; height: 46px;
+  background: var(--brand); color: white !important;
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 1.7rem; font-weight: 700;
+  font-size: 1.25rem; font-weight: 700;
   text-decoration: none !important;
-  box-shadow: 0 6px 20px rgba(20, 33, 28, 0.28);
-  z-index: 9999;
-  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 6px 18px rgba(16,24,40,.18);
+  z-index: 9999; transition: transform .15s, background .15s;
 }
-.back-to-top-link:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 10px 28px rgba(20, 33, 28, 0.38);
-  background: #155445; color: white !important;
-}
+.back-to-top-link:hover { transform: translateY(-2px); background: var(--brand-600); color: white !important; }
 
-/* ============ WEBSITE THEME — bold, modern SaaS look ============ */
-:root {
-  --brand: #1D6A56; --brand-2: #268A6E; --brand-dark: #155445;
-  --accent: #1D6A56;            /* decorative only (gradients/rails) */
-  --accent-text: #155445;       /* AA-safe forest green for text/links on light bg */
-  --accent-soft: #D8E9E1;       /* soft tint for active-nav / highlights */
-  --canvas: #EDF1ED; --card: #ffffff; --raised: #F6F8F5; --ink: #14211C;
-  --muted: #44554E;             /* ~7:1 on white (WCAG AA/AAA text) */
-  --line: #D2DBD4;              /* sage hairline against white cards + canvas */
-  --line-strong: #B2C1B7;       /* clearer outline so every data box is defined */
-  --f-display: 'Frank Ruhl Libre', 'David Libre', 'Times New Roman', serif;
-}
-
-/* App canvas — soft sage behind bright white cards */
-[data-testid="stApp"], [data-testid="stAppViewContainer"] {
-  background:
-    radial-gradient(1200px 500px at 100% -10%, #dce9e2 0%, transparent 60%),
-    var(--canvas) !important;
-}
+/* ============ CANVAS ============ */
+[data-testid="stApp"], [data-testid="stAppViewContainer"] { background: var(--canvas) !important; }
 body { background: var(--canvas); }
-
-/* Main content column */
 [data-testid="stMainBlockContainer"] {
-  max-width: 1200px;
-  padding-top: 1.4rem !important;
+  max-width: 1240px;
+  padding-top: 1.2rem !important;
   padding-bottom: 4rem !important;
 }
-
-/* Slim gradient brand strip across the very top — DESKTOP ONLY. On phones the
-   sidebar is collapsed and Streamlit puts the "open sidebar" control in this
-   header, so it must keep its normal height there (otherwise the control is
-   clipped and the nav can't be reopened). */
+/* thin brand line across the top — DESKTOP ONLY (on phones Streamlit puts the
+   "open sidebar" control in this header, so it keeps its normal height) */
 @media (min-width: 769px) {
   [data-testid="stHeader"] {
-    background: linear-gradient(90deg, var(--brand-dark), var(--brand), var(--accent)) !important;
-    height: 0.42rem !important;
-    min-height: 0.42rem !important;
-    box-shadow: 0 2px 12px rgba(20,33,28,0.35);
+    background: var(--brand) !important;
+    height: 3px !important; min-height: 3px !important;
   }
+  [data-testid="stToolbar"], [data-testid="stAppDeployButton"] { display: none !important; }
 }
 
-/* ---- SIDEBAR as a bold branded nav rail ---- */
+/* ============ SIDEBAR ============ */
 [data-testid="stSidebar"] {
-  background: linear-gradient(180deg, #ffffff 0%, #F6F8F5 100%) !important;
-  box-shadow: -10px 0 30px rgba(20,33,28,0.07);
-  border-inline-start: 1px solid var(--line);
+  background: #FFFFFF !important;
+  border-inline-end: 1px solid var(--line);
+  box-shadow: none;
 }
-/* Brand logo block (rendered from app.py as .brand-logo) */
+[data-testid="stSidebarContent"] { padding-top: .4rem; }
 .brand-logo {
-  background: linear-gradient(135deg, var(--brand-dark), var(--brand) 55%, var(--accent));
-  color: #fff; border-radius: 16px;
-  padding: 1rem 1.1rem; margin-bottom: 1rem;
-  box-shadow: 0 8px 22px rgba(20,33,28,0.35);
-  display: flex; align-items: center; gap: 0.6rem;
+  display: flex; align-items: center; gap: .7rem;
+  padding: .2rem .1rem .9rem; margin-bottom: .4rem;
+  border-bottom: 1px solid var(--line);
 }
-.brand-logo .logo-emoji { font-size: 2rem; line-height: 1; }
-.brand-logo .logo-name { font-size: 1.35rem; font-weight: 800; letter-spacing: .3px; }
-.brand-logo .logo-tag { display:block; font-size: .74rem; font-weight: 500; opacity: .9; }
+.brand-mark {
+  width: 40px; height: 40px; border-radius: 12px; flex: 0 0 auto;
+  background: var(--brand); color: #fff; font-weight: 800; font-size: 1.25rem;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.brand-logo .logo-name { display: block; font-size: 1.25rem; font-weight: 800; color: var(--ink); line-height: 1.1; }
+.brand-logo .logo-tag { display: block; font-size: .68rem; color: var(--muted); line-height: 1.3; }
+.sb-group {
+  font-size: .78rem; font-weight: 700; color: var(--muted);
+  letter-spacing: .03em; margin: 1.05rem 0 .35rem;
+}
+.sb-user { display: flex; align-items: center; gap: .6rem; margin: .45rem 0 .35rem; }
+.sb-avatar {
+  width: 36px; height: 36px; border-radius: 50%; flex: 0 0 auto;
+  background: var(--brand-100); color: var(--brand-700);
+  font-weight: 700; font-size: .9rem;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.sb-user-name { font-weight: 700; font-size: .95rem; line-height: 1.25; color: var(--ink); }
+.sb-user-role { font-size: .8rem; color: var(--muted); line-height: 1.25; }
+.sb-perm {
+  display: inline-block; font-size: .78rem; color: var(--ink-2);
+  background: var(--soft); border: 1px solid var(--line);
+  border-radius: 999px; padding: .1rem .6rem; margin-bottom: .1rem;
+}
+.sb-perm b { color: var(--brand-700); }
+.sb-sep { border-top: 1px solid var(--line); margin: 1rem 0 .5rem; }
 
-/* Resident switcher label (under the brand) */
-[data-testid="stSidebar"] .resident-pick-label {
-  font-size: .82rem; font-weight: 700; color: var(--muted);
-  margin: .1rem 0 .2rem;
-}
-/* Compact prev/next arrows for the resident switcher */
-[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] .stButton button {
-  min-height: 2.3rem !important; padding: 0.3rem 0.6rem !important;
-  text-align: center !important; justify-content: center !important;
-  font-size: 1.1rem !important; font-weight: 800 !important;
-}
-
-/* Sidebar group headers */
-[data-testid="stSidebar"] h4 {
-  color: var(--muted) !important; font-size: .82rem !important;
-  text-transform: none; letter-spacing: .4px; margin: 0.6rem 0 0.35rem 0 !important;
-}
-/* Sidebar nav buttons — clean list rows */
+/* Sidebar nav buttons — quiet list rows with an icon */
 [data-testid="stSidebar"] .stButton button {
-  text-align: right !important; justify-content: flex-start !important;
-  background: #ffffff !important;
-  border: 1px solid var(--line) !important;
-  color: var(--ink) !important; box-shadow: none !important;
-  border-radius: 12px !important; margin-bottom: 0.28rem;
-  font-weight: 600 !important;
-  transition: all .15s ease;
+  justify-content: flex-start !important; text-align: start !important;
+  background: transparent !important; border: 0 !important;
+  border-inline-start: 3px solid transparent !important;
+  color: var(--ink-2) !important; box-shadow: none !important;
+  border-radius: 10px !important; margin-bottom: 2px;
+  font-weight: 500 !important; font-size: .98rem !important;
+  min-height: 2.55rem !important; padding: .45rem .7rem !important;
+  transition: background .12s ease;
 }
-[data-testid="stSidebar"] .stButton button:hover {
-  background: var(--accent-soft) !important; border-color: var(--line-strong) !important;
-  transform: translateX(-3px);
-}
-/* ---- ACTIVE nav item: strong, unmistakable highlight ----
-   NOTE the selector: ".stButton button[data-testid=...]" gives this a higher
-   specificity than the base ".stButton button" list-row rule above, so the
-   highlight actually wins. With the weaker selector the active item was being
-   painted white like the inactive ones — impossible to tell which view is open. */
+[data-testid="stSidebar"] .stButton button [data-testid="stIconMaterial"] { color: var(--muted); }
+[data-testid="stSidebar"] .stButton button:hover { background: var(--soft) !important; transform: none; }
+/* ACTIVE nav item (higher specificity than the row rule above) */
 [data-testid="stSidebar"] .stButton button[data-testid="stBaseButton-primary"] {
-  background: linear-gradient(135deg, var(--brand-dark) 0%, var(--brand) 55%, var(--brand-2) 100%) !important;
-  border: none !important;
-  border-inline-start: 6px solid var(--accent) !important;  /* bright rail on the leading edge */
-  color: #fff !important;
-  font-weight: 800 !important;
-  box-shadow: 0 10px 24px rgba(20,33,28,0.5) !important;
-  transform: scale(1.03);
+  background: var(--brand-50) !important;
+  border-inline-start: 3px solid var(--brand) !important;
+  color: var(--brand-700) !important; font-weight: 700 !important;
 }
-[data-testid="stSidebar"] .stButton button[data-testid="stBaseButton-primary"]:hover {
-  transform: scale(1.03);
-  filter: brightness(1.06);
+[data-testid="stSidebar"] .stButton button[data-testid="stBaseButton-primary"] [data-testid="stIconMaterial"] { color: var(--brand); }
+/* resident prev / next: small square icon buttons */
+[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] .stButton button {
+  justify-content: center !important; min-height: 2.3rem !important;
+  padding: .25rem .4rem !important; border: 1px solid var(--line-2) !important;
+  background: #fff !important; font-size: .9rem !important;
 }
-/* "you are here" dot before the active label (RTL-neutral) */
-[data-testid="stSidebar"] .stButton button[data-testid="stBaseButton-primary"] p::before {
-  content: "\25CF\00A0";   /* ● + nbsp */
-  color: var(--accent);
-  font-size: 0.8em;
+[data-testid="stSidebar"] .stMarkdown, [data-testid="stSidebar"] label { font-size: .95rem; }
+[data-testid="stSidebar"] [data-testid="stExpander"] {
+  border: 1px solid var(--line) !important; border-radius: 12px !important; box-shadow: none !important;
 }
 
-/* A COLLAPSED expander must fully hide its content. Some Streamlit/RTL
-   combinations leave the content rendered (display:block) and overflowing onto
-   the page, so text lands on top of the content below it. Force it hidden. */
+/* A COLLAPSED expander must fully hide its content (Streamlit/RTL quirk). */
 [data-testid="stMain"] details:not([open]) > [data-testid="stExpanderDetails"],
 [data-testid="stSidebar"] details:not([open]) > [data-testid="stExpanderDetails"] {
   display: none !important;
 }
 
-/* ---- CARDS: bold, elevated, rounded ---- */
+/* ============ PAGE HEADER ============ */
+.page-head { display: flex; align-items: center; gap: .9rem; margin: .1rem 0 1.15rem; }
+.ph-icon {
+  font-family: 'Material Symbols Rounded', 'Material Symbols Outlined', 'Material Icons' !important;
+  font-feature-settings: 'liga'; -webkit-font-feature-settings: 'liga';
+  direction: ltr; font-size: 26px; line-height: 1; font-weight: normal;
+  width: 48px; height: 48px; border-radius: 14px; flex: 0 0 auto;
+  background: var(--brand-50); color: var(--brand);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.page-head h1 {
+  font-size: 1.6rem !important; font-weight: 700 !important;
+  color: var(--ink) !important; margin: 0 !important; padding: 0 !important; line-height: 1.25 !important;
+}
+.page-head p { margin: .15rem 0 0 !important; color: var(--muted); font-size: .97rem; }
+.section-label { font-weight: 700; color: var(--ink-2); font-size: .95rem; margin: .7rem 0 .45rem; }
+
+/* ============ CARDS ============ */
 [data-testid="stMain"] [data-testid="stExpander"],
 [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] {
   background: var(--card) !important;
-  border: 1.5px solid var(--line-strong) !important;
-  border-radius: 18px !important;
-  box-shadow: 0 10px 30px rgba(15,23,42,0.10) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 14px !important;
+  box-shadow: var(--sh-sm) !important;
   overflow: hidden;
-  transition: box-shadow .18s ease, transform .18s ease;
 }
-[data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"]:hover {
-  box-shadow: 0 16px 40px rgba(15,23,42,0.12) !important;
-  transform: translateY(-2px);
-}
+[data-testid="stExpander"] summary { font-weight: 600; }
 
-/* ---- METRICS: gradient stat cards with brand accent ---- */
+/* ---- METRICS ---- */
 [data-testid="stMetric"] {
-  background: linear-gradient(180deg, #ffffff, #F6F8F5);
-  border: 1px solid var(--line);
-  border-inline-start: 5px solid var(--brand);
-  border-radius: 16px; padding: 0.9rem 1.1rem;
-  box-shadow: 0 6px 18px rgba(15,23,42,0.06);
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 14px; padding: .8rem 1rem; box-shadow: var(--sh-sm);
 }
-[data-testid="stMetricValue"] { color: var(--brand-dark); font-weight: 800; }
+[data-testid="stMetricLabel"] p { color: var(--muted) !important; font-size: .88rem !important; font-weight: 600 !important; }
+[data-testid="stMetricValue"] { color: var(--ink); font-weight: 700; font-size: 1.7rem; }
 
-/* ---- PRIMARY BUTTONS: vivid gradient, lift on hover ---- */
+/* ---- BUTTONS ---- */
+.stButton button, .stDownloadButton button, .stFormSubmitButton button {
+  font-size: 1rem !important; font-weight: 600 !important;
+  padding: .5rem 1rem !important; min-height: 2.6rem !important;
+  border-radius: 10px !important; border-width: 1px !important;
+}
 [data-testid="stMain"] [data-testid="stBaseButton-primary"],
 [data-testid="stMain"] [data-testid="stBaseButton-primaryFormSubmit"] {
-  background: linear-gradient(135deg, var(--brand), var(--brand-2)) !important;
-  border: none !important; color: #fff !important;
-  border-radius: 12px !important;
-  box-shadow: 0 8px 20px rgba(20,33,28,0.35) !important;
+  background: var(--brand) !important; border: 1px solid var(--brand) !important;
+  color: #fff !important; box-shadow: var(--sh-sm) !important;
 }
 [data-testid="stMain"] [data-testid="stBaseButton-primary"]:hover,
 [data-testid="stMain"] [data-testid="stBaseButton-primaryFormSubmit"]:hover {
-  filter: brightness(1.07); transform: translateY(-2px);
+  background: var(--brand-600) !important; border-color: var(--brand-600) !important;
 }
-/* Secondary buttons */
-[data-testid="stMain"] [data-testid="stBaseButton-secondary"] {
-  border-radius: 12px !important; border: 1.5px solid var(--line) !important;
-  background: #fff !important;
+[data-testid="stMain"] [data-testid="stBaseButton-secondary"],
+[data-testid="stMain"] [data-testid="stBaseButton-secondaryFormSubmit"] {
+  background: #fff !important; border: 1px solid var(--line-2) !important; color: var(--ink-2) !important;
 }
+[data-testid="stMain"] [data-testid="stBaseButton-secondary"]:hover {
+  background: var(--soft) !important; border-color: var(--brand-200) !important;
+}
+button:disabled { opacity: .55; cursor: not-allowed !important; }
 
-/* ---- HEADINGS: brand color + serif display face ---- */
-[data-testid="stMain"] h1, [data-testid="stMain"] h2 {
-  color: var(--brand-dark) !important;
-  font-family: var(--f-display) !important;
-}
+/* ---- HEADINGS ---- */
+[data-testid="stMain"] h1, [data-testid="stMain"] h2,
+[data-testid="stMain"] h3, [data-testid="stMain"] h4 { color: var(--ink) !important; }
 
-/* ---- TABS: modern pill bar ---- */
-[data-testid="stMain"] .stTabs [data-baseweb="tab-list"] {
-  background: #fff; border: 1px solid var(--line);
-  border-radius: 14px; padding: 0.35rem; gap: 0.25rem;
-  box-shadow: 0 4px 14px rgba(15,23,42,0.05);
+/* ---- TABS: segmented control ---- */
+.stTabs [data-baseweb="tab-list"] {
+  background: #E9EEEB; border: 0; border-radius: 12px;
+  padding: 4px; gap: 0 !important; flex-wrap: wrap !important;
+  box-shadow: none;
 }
-[data-testid="stMain"] .stTabs [aria-selected="true"] {
-  background: linear-gradient(135deg, var(--brand), var(--brand-2)) !important;
-  color: #fff !important; border-radius: 10px;
+.stTabs [data-baseweb="tab"] {
+  font-size: .92rem !important; font-weight: 600 !important;
+  padding: .4rem .55rem !important; min-height: 2.3rem !important;
+  border-radius: 9px !important; white-space: nowrap !important;
+  color: var(--ink-2) !important; background: transparent !important; border: 0 !important;
 }
-[data-testid="stMain"] .stTabs [aria-selected="true"] * { color: #fff !important; }
+.stTabs [data-baseweb="tab"]:hover { background: rgba(255,255,255,.6) !important; }
+.stTabs [data-baseweb="tab"][aria-selected="true"] {
+  background: #fff !important; color: var(--brand-700) !important;
+  box-shadow: 0 1px 3px rgba(16,24,40,.12);
+}
+.stTabs [data-baseweb="tab"][aria-selected="true"] * { color: var(--brand-700) !important; }
+.stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"] { display: none !important; }
+.stTabs [data-baseweb="tab-panel"] { padding-top: 1rem; }
 
-/* ---- INPUTS: rounded, clearly outlined, brand focus ---- */
+/* ---- INPUTS ---- */
 [data-testid="stMain"] input, [data-testid="stMain"] textarea,
 [data-testid="stMain"] [data-baseweb="select"] > div,
 [data-testid="stMain"] [data-baseweb="input"] {
-  border-radius: 12px !important;
-  border: 1.5px solid var(--line-strong) !important;
+  border-radius: 10px !important;
+  border: 1px solid var(--line-2) !important;
   background: #fff !important;
 }
 /* ...but the tiny search input INSIDE a select / multiselect must stay
-   transparent and borderless. The rule above otherwise turns it into a white
-   rounded box that sits over the value tags — the "white circle" the user sees
-   covering the first Hebrew letter of a selected value. */
+   transparent and borderless (otherwise a white box covers the first letter). */
 [data-testid="stMain"] [data-baseweb="select"] input {
-  border: none !important;
-  background: transparent !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  min-width: 2px !important;
+  border: none !important; background: transparent !important;
+  border-radius: 0 !important; box-shadow: none !important; min-width: 2px !important;
 }
 
-/* ---- MULTISELECT TAGS (RTL): the rounded, bordered control can visually clip
-   the first tag against its corner, and baseweb caps the tag label with an
-   ellipsis (max-width). Inset the tag row from the border and let every tag
-   show its FULL Hebrew label, so selected diagnoses / medications / conditions
-   are always fully readable. ---- */
+/* ---- MULTISELECT TAGS (RTL): full Hebrew label, × on the left ---- */
 [data-testid="stMain"] [data-testid="stMultiSelect"] [data-baseweb="select"] > div {
-  overflow: visible !important;        /* the rounded corner must NEVER clip a tag */
-  padding-inline: 6px !important;
+  overflow: visible !important; padding-inline: 6px !important;
 }
-/* Force the tag to lay out RTL in every browser: the label on the RIGHT and the
-   remove-× on the LEFT, with a gap so the × can never cover the first Hebrew
-   letter. (Without this, some browsers keep the tag LTR and the × overlaps the
-   word start — e.g. "חרדה" shows as "רדה".) */
 [data-testid="stMain"] [data-testid="stMultiSelect"] [data-baseweb="tag"] {
-  direction: rtl !important;
-  flex-direction: row !important;
-  max-width: none !important;
-  overflow: visible !important;
-  margin: 2px 4px !important;
-  padding-inline-start: 10px !important;   /* space on the label (right) side */
-  padding-inline-end: 4px !important;
-  column-gap: 4px !important;
+  direction: rtl !important; flex-direction: row !important;
+  max-width: none !important; overflow: visible !important;
+  margin: 2px 4px !important; padding-inline-start: 10px !important;
+  padding-inline-end: 4px !important; column-gap: 4px !important;
+  background: var(--brand-50) !important; color: var(--brand-700) !important;
+  border-radius: 999px !important;
 }
 [data-testid="stMain"] [data-testid="stMultiSelect"] [data-baseweb="tag"] span[title],
 [data-testid="stMain"] [data-testid="stMultiSelect"] [data-baseweb="tag"] > span {
-  max-width: none !important;
-  overflow: visible !important;
-  text-overflow: clip !important;
+  max-width: none !important; overflow: visible !important; text-overflow: clip !important;
 }
-/* Belt-and-suspenders: pin the flex order of the tag's DIRECT children so the
-   label (with title) is first (right in rtl) and the remove-× span is second
-   (left), regardless of how a browser resolves direction on the flex row. */
-[data-testid="stMain"] [data-testid="stMultiSelect"] [data-baseweb="tag"] > span[title] {
-  order: 1 !important;
-}
+[data-testid="stMain"] [data-testid="stMultiSelect"] [data-baseweb="tag"] > span[title] { order: 1 !important; }
 [data-testid="stMain"] [data-testid="stMultiSelect"] [data-baseweb="tag"] > span:not([title]) {
-  order: 2 !important;
-  flex: 0 0 auto !important;
+  order: 2 !important; flex: 0 0 auto !important;
 }
 
-/* ---- DATAFRAMES: framed card ---- */
+/* ---- DATAFRAMES ---- */
 [data-testid="stMain"] [data-testid="stDataFrame"] {
-  border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
-  box-shadow: 0 6px 18px rgba(15,23,42,0.05);
+  border: 1px solid var(--line); border-radius: 12px; overflow: hidden; box-shadow: var(--sh-sm);
 }
 
-/* ---- ELDERLY-FRIENDLY TYPOGRAPHY ---- */
-/* 'IBM Plex Sans Hebrew' — the MIA design system's UI face: a clean, highly
-   legible Hebrew+Latin humanist sans chosen for clarity and accessibility.
-   Loaded from Google Fonts in inject(); robust system fallbacks if it can't
-   load. (Headings use 'Frank Ruhl Libre' — see --f-display.) */
+/* ---- TYPOGRAPHY ---- */
 html, body,
 [class*="st-"]:not([data-testid="stIconMaterial"]),
 button, input, textarea, select,
 [data-testid="stMarkdownContainer"] {
   font-family: 'IBM Plex Sans Hebrew', 'IBM Plex Sans', system-ui, 'Segoe UI', 'Arial', sans-serif;
-  font-size: 17px;
+  font-size: 16px;
   line-height: 1.6;                 /* >= 1.5 for readability (WCAG 1.4.8) */
 }
-/* NEVER let the text font touch Streamlit's Material icons. They render glyphs
-   from a ligature font ('keyboard_arrow_right' -> ▸). If our text font wins, the
-   ligature name shows as RAW TEXT and collides with the real label next to it.
-   Force the icon font back with high specificity + !important. */
+/* NEVER let the text font touch Streamlit's Material icons (ligature font). */
 span[data-testid="stIconMaterial"],
 [data-testid="stIconMaterial"] {
   font-family: 'Material Symbols Rounded', 'Material Symbols Outlined',
                'Material Icons Rounded', 'Material Icons' !important;
-  font-weight: normal !important;
-  font-style: normal !important;
-  letter-spacing: normal !important;
-  text-transform: none !important;
-  white-space: nowrap !important;
-  word-wrap: normal !important;
+  font-weight: normal !important; font-style: normal !important;
+  letter-spacing: normal !important; text-transform: none !important;
+  white-space: nowrap !important; word-wrap: normal !important;
   direction: ltr !important;
-  font-feature-settings: 'liga' !important;
-  -webkit-font-feature-settings: 'liga' !important;
-  text-rendering: optimizeLegibility !important;
-  -webkit-font-smoothing: antialiased !important;
+  font-feature-settings: 'liga' !important; -webkit-font-feature-settings: 'liga' !important;
+  text-rendering: optimizeLegibility !important; -webkit-font-smoothing: antialiased !important;
 }
 p, li, [data-testid="stMarkdownContainer"] p { letter-spacing: normal; }
-h1 { font-size: 2.1rem !important; font-weight: 700 !important; }
-h2 { font-size: 1.7rem !important; font-weight: 700 !important; }
-h3 { font-size: 1.35rem !important; font-weight: 600 !important; }
-h4 { font-size: 1.15rem !important; font-weight: 600 !important; }
+h1 { font-size: 1.9rem !important; font-weight: 700 !important; }
+h2 { font-size: 1.5rem !important; font-weight: 700 !important; }
+h3 { font-size: 1.25rem !important; font-weight: 700 !important; }
+h4 { font-size: 1.08rem !important; font-weight: 700 !important; margin-top: .4rem !important; }
 
-/* Larger, easier-to-tap buttons */
-.stButton button, .stDownloadButton button, .stFormSubmitButton button {
-  font-size: 1.05rem !important;
-  font-weight: 600 !important;
-  padding: 0.7rem 1.3rem !important;
-  min-height: 2.9rem !important;
-  border-radius: 10px !important;
-  border-width: 2px !important;
-}
-.stButton button:hover { transform: translateY(-1px); transition: transform 0.15s; }
-
-/* Larger inputs */
 .stTextInput input, .stTextArea textarea, .stNumberInput input,
 .stSelectbox div[role="combobox"], .stDateInput input {
-  font-size: 1.05rem !important;
-  padding: 0.65rem 0.85rem !important;
-  min-height: 2.7rem !important;
+  font-size: 1rem !important; min-height: 2.6rem !important;
 }
-
-/* Higher-contrast labels */
 .stTextInput label, .stTextArea label, .stNumberInput label,
 .stSelectbox label, .stDateInput label, .stRadio label, .stCheckbox label,
-.stMultiSelect label, .stSlider label {
-  font-size: 1.02rem !important;
-  font-weight: 600 !important;
-  color: #1f2937 !important;
+.stMultiSelect label, .stSlider label, .stTimeInput label {
+  font-size: .95rem !important; font-weight: 600 !important; color: var(--ink-2) !important;
 }
 
 /* =====================================================================
    ACCESSIBILITY — ת"י 5568 / WCAG 2.0 AA
    ===================================================================== */
-/* 2.4.7 Focus Visible — a clear, high-contrast keyboard focus ring on every
-   interactive element (Streamlit's default is faint). */
+/* 2.4.7 Focus Visible — a clear, high-contrast keyboard focus ring */
 [data-testid="stApp"] a:focus,
-[data-testid="stApp"] button:focus,
+[data-testid="stApp"] button:focus-visible,
 [data-testid="stApp"] input:focus,
 [data-testid="stApp"] textarea:focus,
 [data-testid="stApp"] select:focus,
 [data-testid="stApp"] summary:focus,
-[data-testid="stApp"] [role="button"]:focus,
-[data-testid="stApp"] [role="tab"]:focus,
-[data-testid="stApp"] [data-baseweb="tab"]:focus,
-[data-testid="stApp"] [tabindex]:focus,
-[data-testid="stSidebar"] .stButton button:focus {
-  outline: 3px solid #155445 !important;
+[data-testid="stApp"] [role="button"]:focus-visible,
+[data-testid="stApp"] [role="tab"]:focus-visible,
+[data-testid="stApp"] [data-baseweb="tab"]:focus-visible,
+[data-testid="stApp"] [tabindex]:focus-visible,
+[data-testid="stSidebar"] .stButton button:focus-visible {
+  outline: 3px solid var(--brand-700) !important;
   outline-offset: 2px !important;
-  /* box-shadow ring survives Streamlit's outline resets, so the focus is
-     always visible (a white gap + a strong blue ring on any background) */
-  box-shadow: 0 0 0 3px #ffffff, 0 0 0 6px #155445 !important;
-  border-radius: 6px !important;
+  box-shadow: 0 0 0 3px #ffffff, 0 0 0 6px var(--brand-700) !important;
+  border-radius: 8px !important;
 }
 [data-baseweb="select"]:focus-within,
 [data-baseweb="input"]:focus-within {
-  outline: 3px solid #155445 !important;
-  outline-offset: 1px !important;
+  outline: 3px solid var(--brand-700) !important; outline-offset: 1px !important;
 }
-
-/* 1.4.1 Use of Colour — in-content links carry an underline, not colour alone */
+/* 1.4.1 Use of Colour — in-content links carry an underline */
 [data-testid="stMain"] a:not(.back-to-top-link):not([class*="brand"]) {
-  color: var(--accent-text);
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  color: var(--brand-700); text-decoration: underline; text-underline-offset: 2px;
 }
-[data-testid="stMain"] a:not(.back-to-top-link):hover { color: #155445; }
-
-/* 2.3.3 / respect the OS "reduce motion" setting */
+/* 2.3.3 respect the OS "reduce motion" setting */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
-    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important; animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important; scroll-behavior: auto !important;
   }
 }
-
-/* 2.4.1 Bypass Blocks — visually-hidden skip link that appears on focus */
+/* 2.4.1 Bypass Blocks — skip link that appears on focus */
 .sr-only {
-  position: absolute !important; width: 1px; height: 1px;
-  padding: 0; margin: -1px; overflow: hidden;
-  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
 .skip-link {
   position: fixed; top: -80px; inset-inline-start: 12px; z-index: 100000;
-  background: #155445; color: #fff !important; padding: 0.65rem 1.1rem;
+  background: var(--brand-700); color: #fff !important; padding: .6rem 1rem;
   border-radius: 0 0 10px 10px; text-decoration: none !important;
-  font-weight: 700; font-size: 1.05rem; transition: top 0.15s;
+  font-weight: 700; font-size: 1rem; transition: top .15s;
 }
 .skip-link:focus { top: 0; outline: 3px solid #fde047; outline-offset: 2px; }
 
-/* Tabs: compact so all 8 fit on one row, but still readable for elderly users */
-.stTabs [data-baseweb="tab-list"] {
-  flex-wrap: wrap !important;       /* fall to second row if narrow */
-  gap: 0.25rem !important;
-}
-.stTabs [data-baseweb="tab"] {
-  font-size: 0.95rem !important;
-  font-weight: 600 !important;
-  padding: 0.55rem 0.75rem !important;
-  min-height: 2.5rem !important;
-  border-radius: 8px 8px 0 0 !important;
-  white-space: nowrap !important;
-}
-.stTabs [data-baseweb="tab"][aria-selected="true"] {
-  background: var(--accent-soft) !important;
-  border-bottom: 3px solid var(--brand) !important;
-}
-
-/* Sidebar text */
-[data-testid="stSidebar"] .stMarkdown, [data-testid="stSidebar"] label,
-[data-testid="stSidebar"] .stRadio div { font-size: 1.05rem; }
-
-/* Cards (st.container(border=True)) — softer shadow, padding */
-[data-testid="stContainer"] { padding: 0.6rem 0.2rem; }
-
-/* ---- Institution / organization banner (top of page) ---- */
+/* ============ COMPONENTS ============ */
+/* Institution banner */
 .org-banner {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  border: 2px solid #f59e0b;
-  border-radius: 14px;
-  padding: 1rem 1.4rem;
-  margin-bottom: 0.9rem;
-  box-shadow: 0 3px 10px rgba(245, 158, 11, 0.12);
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--r-lg); padding: .9rem 1.2rem; margin-bottom: .7rem;
+  box-shadow: var(--sh-sm);
 }
-.org-banner-top {
-  display: flex; align-items: baseline; justify-content: space-between;
-  gap: 1rem; flex-wrap: wrap;
+.org-banner-top { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.org-banner-name { font-size: 1.2rem; font-weight: 700; color: var(--ink); }
+.org-banner-manager { font-size: .92rem; color: var(--muted); }
+.org-banner-row { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .5rem; }
+.org-chip {
+  display: inline-flex; align-items: center; gap: .25rem;
+  background: var(--soft); border: 1px solid var(--line); border-radius: 999px;
+  padding: .1rem .65rem; font-size: .86rem; color: var(--ink-2);
 }
-.org-banner-name {
-  font-size: 1.45rem; font-weight: 800; color: #78350f;
-}
-.org-banner-manager {
-  font-size: 0.95rem; color: #92400e;
-}
-.org-banner-row {
-  display: flex; gap: 1.2rem; flex-wrap: wrap;
-  font-size: 0.95rem; color: #78350f; margin-top: 0.4rem;
-}
-.org-banner-contact {
-  font-size: 0.92rem; color: #92400e; margin-top: 0.3rem;
-}
-.org-banner-desc {
-  font-size: 0.88rem; color: #6b4513; margin-top: 0.45rem;
-  border-top: 1px dashed #d97706; padding-top: 0.4rem; font-style: italic;
-}
+.org-banner-desc { font-size: .88rem; color: var(--muted); margin-top: .55rem; }
 
-/* ---- Institution role-holders (staff switcher inside the org details) ---- */
-.staff-title {
-  font-weight: 700; color: var(--brand-dark); margin: 0.7rem 0 0.35rem;
-  font-size: 1.02rem;
-}
-.staff-card {
-  background: #fff; border: 1.5px solid var(--line-strong);
-  border-inline-start: 6px solid var(--brand);
-  border-radius: 14px; padding: 0.7rem 1rem; margin-top: 0.4rem;
-  box-shadow: 0 4px 14px rgba(15,23,42,0.05);
-}
-.staff-card-role { color: var(--accent-text); font-weight: 700; font-size: 0.9rem; }
-.staff-card-name { font-weight: 800; font-size: 1.12rem; margin: 0.1rem 0 0.2rem; }
-.staff-card-row { color: var(--muted); font-size: 0.96rem; }
-.staff-card-notes { color: var(--muted); font-size: 0.9rem; margin-top: 0.35rem; }
-
-/* ---- Sidebar "logged-in user" (role-holder) + entered-by attribution ---- */
-.sb-user-title { font-weight: 700; color: var(--brand-dark); margin: 0.2rem 0 0.1rem;
-  font-size: 0.98rem; }
-.sb-user-badge { background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 10px;
-  padding: 0.4rem 0.7rem; margin: 0.35rem 0; font-size: 0.95rem; line-height: 1.35; }
-.sb-user-badge span { color: var(--muted); font-size: 0.82rem; }
-.entered-by { color: var(--muted); font-size: 0.9rem; margin: 0.2rem 0 0.7rem;
-  background: #f8fafc; border: 1px solid var(--line); border-radius: 8px;
-  padding: 0.3rem 0.75rem; display: inline-block; }
-
-/* ---- Resident banner (sub-views: goals / daily / weekly / tracking) ---- */
-.resident-banner {
-  display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;
-  background: linear-gradient(135deg, #F6F8F5 0%, var(--accent-soft) 100%);
-  border: 1px solid var(--line-strong);
-  border-inline-start: 6px solid var(--brand);
-  border-radius: 12px;
-  padding: 0.6rem 1rem;
-  margin: 0.2rem 0 1rem;
-  font-size: 1.15rem; color: #155445;
-  box-shadow: 0 4px 14px rgba(20,33,28,0.12);
-}
-.resident-banner .rb-room { font-size: 0.95rem; color: var(--accent-text); font-weight: 600; }
-.resident-banner .rb-hint { font-size: 0.8rem; color: var(--muted); opacity: 0.85; }
-
-/* ---- Header band ---- */
+/* Resident card */
 .eldercare-header {
-  background: linear-gradient(135deg, var(--brand-dark) 0%, var(--brand) 55%, var(--brand-2) 120%);
-  color: white;
-  padding: 1.7rem 1.9rem;
-  border-radius: 18px;
-  margin-bottom: 1.2rem;
-  box-shadow: 0 14px 34px rgba(20, 33, 28, 0.32);
+  display: flex; align-items: center; gap: 1rem;
+  background: linear-gradient(135deg, #FFFFFF 0%, var(--brand-50) 100%);
+  border: 1px solid var(--line); border-radius: var(--r-lg);
+  padding: 1rem 1.25rem; margin: .4rem 0 .9rem; box-shadow: var(--sh-sm);
 }
-.eldercare-header h2 { margin: 0 0 0.3rem 0; font-size: 1.8rem; color: white !important; }
-.eldercare-header .subtitle { opacity: 0.92; font-size: 1.02rem; }
+.eh-avatar {
+  width: 58px; height: 58px; border-radius: 50%; flex: 0 0 auto;
+  background: var(--brand); color: #fff; font-weight: 700; font-size: 1.3rem;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.eldercare-header h2 { margin: 0 0 .35rem !important; padding: 0 !important; font-size: 1.45rem !important; color: var(--ink) !important; }
+.eldercare-header .subtitle { display: flex; flex-wrap: wrap; gap: .35rem; }
+.eh-chip {
+  background: #fff; border: 1px solid var(--brand-100); color: var(--brand-700);
+  border-radius: 999px; padding: .05rem .65rem; font-size: .86rem; font-weight: 500;
+}
 
-/* ---- Day cards (weekly view) ---- */
+/* Resident strip on the resident sub-screens */
+.resident-banner {
+  display: flex; align-items: center; gap: .55rem; flex-wrap: wrap;
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--r-md);
+  padding: .5rem .8rem; margin: 0 0 1rem; font-size: 1rem; color: var(--ink);
+  box-shadow: var(--sh-sm);
+}
+.rb-avatar {
+  width: 30px; height: 30px; border-radius: 50%; background: var(--brand-100); color: var(--brand-700);
+  display: inline-flex; align-items: center; justify-content: center; font-size: .8rem; font-weight: 700;
+}
+.resident-banner .rb-room { font-size: .86rem; background: var(--soft); border-radius: 999px; padding: .05rem .6rem; color: var(--ink-2); }
+.resident-banner .rb-hint { font-size: .8rem; color: var(--muted); margin-inline-start: auto; }
+
+/* Staff */
+.staff-card {
+  background: #fff; border: 1px solid var(--line); border-radius: 14px;
+  padding: .8rem 1rem; margin-bottom: .7rem; box-shadow: var(--sh-sm);
+}
+.staff-card.me { border-color: var(--brand-200); box-shadow: 0 0 0 3px var(--brand-50); }
+.staff-card-role { color: var(--brand-700); font-weight: 700; font-size: .85rem; }
+.staff-card-name { font-weight: 700; font-size: 1.08rem; margin: .1rem 0 .25rem; color: var(--ink); }
+.staff-card-row { color: var(--muted); font-size: .92rem; }
+.perm-chip { display: inline-block; margin-top: .45rem; background: var(--brand-50); color: var(--brand-700);
+  border-radius: 999px; padding: .05rem .6rem; font-size: .8rem; font-weight: 600; }
+.me-tag { font-size: .72rem; background: var(--brand); color: #fff; border-radius: 999px; padding: 0 .45rem; vertical-align: middle; }
+.entered-by { color: var(--muted); font-size: .88rem; margin: .2rem 0 .7rem;
+  background: var(--soft); border: 1px solid var(--line); border-radius: 999px;
+  padding: .15rem .75rem; display: inline-block; }
+
+/* Plan item (daily plan + tracking) */
+.plan-item {
+  display: flex; align-items: center; gap: .55rem; flex-wrap: wrap;
+  border-inline-start: 4px solid var(--cat, var(--line-2)); padding-inline-start: .7rem;
+}
+.pi-time {
+  font-variant-numeric: tabular-nums; direction: ltr; font-weight: 700; font-size: .92rem;
+  background: var(--soft); border-radius: 8px; padding: .05rem .5rem; color: var(--ink-2);
+}
+.pi-title { font-weight: 700; font-size: 1.05rem; color: var(--ink); }
+.done-tick {
+  display: inline-flex; width: 20px; height: 20px; border-radius: 50%;
+  background: #1E7B4F; color: #fff; font-size: .72rem; align-items: center; justify-content: center;
+  margin-inline-end: .35rem; vertical-align: middle;
+}
+.pi-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .4rem; margin-top: .5rem; }
+.pi-dur { color: var(--muted); font-size: .85rem; }
+.why { color: var(--muted); font-size: .82rem; font-weight: 600; margin-inline-start: .35rem; }
+.why-lead { font-size: .82rem; font-weight: 700; color: var(--ink-2); margin-inline-end: .15rem; }
+.why-chip {
+  display: inline-block; background: var(--brand-50); color: var(--brand-700);
+  border-radius: 999px; padding: .02rem .55rem; font-size: .8rem; font-weight: 500; line-height: 1.6;
+}
+.why-chip.soft { background: var(--soft); color: var(--ink-2); }
+.why-chip.warn { background: #FFF4E5; color: #8A4B08; }
+.goal-tags { display: inline-flex; flex-wrap: wrap; gap: .25rem; margin-inline-start: .3rem; }
+.status-pill { margin-inline-start: auto; font-size: .8rem; font-weight: 700; border-radius: 999px; padding: .05rem .65rem; }
+.status-pill.done { background: #E3F4EA; color: #17603A; }
+.status-pill.skip { background: #FDECEC; color: #9B1C1C; }
+.status-pill.pending { background: var(--soft); color: var(--muted); }
+.day-divider { font-weight: 700; color: var(--ink-2); margin: 1.2rem 0 .45rem; padding-bottom: .3rem; border-bottom: 1px solid var(--line); }
+.activity-cat-pill {
+  display: inline-block; padding: .02rem .6rem; border-radius: 999px;
+  font-size: .78rem; font-weight: 700;
+}
+
+/* Weekly view */
+.week-title { text-align: center; font-size: 1.1rem; color: var(--ink-2); }
+.week-title b { color: var(--ink); }
 .day-card {
-  background: white;
-  border: 2px solid var(--line);
-  border-radius: 14px;
-  padding: 1.1rem;
-  margin-bottom: 0.85rem;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  background: #fff; border: 1px solid var(--line); border-radius: 14px;
+  padding: .9rem; margin-bottom: .6rem; box-shadow: var(--sh-sm);
 }
 .day-card-header {
-  display: flex; align-items: center; justify-content: space-between;
-  border-bottom: 1px solid #f3f4f6;
-  padding-bottom: 0.6rem; margin-bottom: 0.85rem;
+  display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+  border-bottom: 1px solid var(--line); padding-bottom: .55rem; margin-bottom: .65rem;
 }
-.day-badge {
-  display: inline-flex; align-items: center; gap: 0.5rem;
-  font-weight: 700; color: #155445; font-size: 1.05rem;
-}
+.day-badge { display: inline-flex; align-items: center; gap: .5rem; font-weight: 700; color: var(--ink); font-size: 1.02rem; }
 .day-number {
-  background: var(--brand); color: white;
-  border-radius: 999px;
-  width: 32px; height: 32px;
-  display: inline-flex; align-items: center; justify-content: center;
-  font-size: 0.95rem; font-weight: 700;
+  background: var(--brand-50); color: var(--brand-700); border-radius: 999px;
+  width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
+  font-size: .9rem; font-weight: 700;
 }
-.day-date { color: #4b5563; font-size: 0.92rem; }
-.day-stats { font-size: 0.9rem; color: #4b5563; font-weight: 600; }
-.day-today {
-  border-color: var(--brand) !important;
-  box-shadow: 0 6px 18px rgba(29, 106, 86, 0.18);
-}
-
-/* ---- Activity item ---- */
+.day-date { color: var(--muted); font-size: .88rem; font-weight: 500; }
+.day-stats { font-size: .82rem; color: var(--muted); font-weight: 600; background: var(--soft); border-radius: 999px; padding: .05rem .55rem; }
+.day-today { border-color: var(--brand) !important; box-shadow: 0 0 0 3px var(--brand-50) !important; }
+.day-today .day-number { background: var(--brand); color: #fff; }
 .activity-item {
-  border-right: 5px solid #94a3b8;
-  background: #f9fafb;
-  border-radius: 8px;
-  padding: 0.6rem 0.9rem;
-  margin-bottom: 0.5rem;
-  font-size: 0.96rem;
+  display: flex; align-items: center; gap: .45rem;
+  background: #F7F9F8; border-radius: 8px;
+  border-inline-start: 3px solid var(--cat, var(--line-2));
+  padding: .3rem .55rem; margin-bottom: .3rem; font-size: .9rem;
 }
-.activity-item.done {
-  background: #d1fae5;
-  border-right-color: #059669;
-  text-decoration: line-through;
-  color: #4b5563;
-}
-.activity-time {
-  display: inline-block; font-weight: 700; color: #1f2937; margin-left: 0.5rem;
-}
-.activity-cat-pill {
-  display: inline-block;
-  padding: 0.15rem 0.6rem;
-  border-radius: 999px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  margin-right: 0.4rem;
-}
+.activity-item.done { background: #EAF6EF; color: var(--muted); }
+.activity-item.done .activity-name { text-decoration: line-through; }
+.activity-time { font-weight: 700; direction: ltr; min-width: 2.9rem; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.day-empty { color: var(--muted); font-size: .85rem; font-style: italic; }
 
-/* ---- Family contact card ---- */
+/* Facility group board */
+.board-session { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: .55rem .85rem; margin-bottom: .4rem; }
+.bs-top { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .55rem; }
+.bs-time { font-weight: 700; background: var(--soft); border-radius: 8px; padding: 0 .45rem; direction: ltr; }
+.bs-label { color: var(--muted); font-size: .9rem; }
+.bs-count { background: var(--brand-50); color: var(--brand-700); border-radius: 999px; padding: .02rem .6rem; font-weight: 700; font-size: .85rem; margin-inline-start: auto; white-space: nowrap; }
+.bs-names { color: var(--muted); font-size: .85rem; margin-top: .3rem; }
+
+/* Family contact card */
 .family-card {
-  background: #fffbeb;
-  border: 2px solid #fde68a;
-  border-radius: 12px;
-  padding: 1rem;
-  margin-bottom: 0.7rem;
+  background: #fff; border: 1px solid var(--line); border-radius: 14px;
+  padding: .85rem 1rem; margin-bottom: .6rem; box-shadow: var(--sh-sm);
 }
-.family-card.primary {
-  background: #fef3c7;
-  border-color: #f59e0b;
-  box-shadow: 0 3px 10px rgba(245, 158, 11, 0.15);
-}
-.family-card .name { font-size: 1.1rem; font-weight: 700; color: #78350f; }
-.family-card .relation { color: #92400e; font-size: 0.95rem; }
-.family-card .phone { font-size: 1.05rem; color: #1f2937; font-weight: 600; margin-top: 0.3rem; }
-.family-card .notes { font-size: 0.9rem; color: #4b5563; margin-top: 0.4rem; font-style: italic; }
+.family-card.primary { border-color: #E8C27A; background: #FFFBF2; }
+.family-card .name { font-size: 1.05rem; font-weight: 700; color: var(--ink); }
+.family-card .relation { color: var(--muted); font-size: .92rem; }
+.family-card .phone { font-size: 1rem; color: var(--ink-2); font-weight: 600; margin-top: .3rem; }
+.family-card .notes { font-size: .88rem; color: var(--muted); margin-top: .35rem; }
 .primary-badge {
-  display: inline-block;
-  background: #f59e0b; color: white;
-  padding: 0.2rem 0.55rem; border-radius: 999px;
-  font-size: 0.75rem; font-weight: 700; margin-right: 0.4rem;
+  display: inline-block; background: #F5E3BF; color: #6B4508;
+  padding: .05rem .55rem; border-radius: 999px; font-size: .75rem; font-weight: 700;
+  margin-inline-end: .4rem;
 }
 
 /* ============ PRINT ============ */
 @media print {
-  /* drop all the chrome — print just the content */
   [data-testid="stSidebar"], [data-testid="stHeader"], [data-testid="stToolbar"],
   .back-to-top-link, .skip-link, .stButton, .stDownloadButton, .stFormSubmitButton {
     display: none !important;
   }
   [data-testid="stAppViewContainer"] { display: block !important; }
   [data-testid="stMain"], [data-testid="stMainBlockContainer"] {
-    width: 100% !important; max-width: 100% !important;
-    padding: 0 !important; margin: 0 !important;
+    width: 100% !important; max-width: 100% !important; padding: 0 !important; margin: 0 !important;
   }
   body, [data-testid="stApp"] { background: #fff !important; }
-  /* keep card/banner colours on the printout, drop heavy shadows */
   * { box-shadow: none !important;
       -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 }
 
 /* ============ MOBILE / PHONE (≤ 768px) ============ */
 @media (max-width: 768px) {
-  /* tighter base type + spacing for small screens */
   html, body, [class*="st-"] { font-size: 15px; line-height: 1.5; }
-  h1 { font-size: 1.5rem !important; }
-  h2 { font-size: 1.28rem !important; }
-  h3 { font-size: 1.12rem !important; }
-  h4 { font-size: 1.0rem !important; }
-
-  /* slimmer scrollbar on touch devices (18px is huge on a phone) */
-  ::-webkit-scrollbar { width: 9px !important; height: 9px !important; }
-  ::-webkit-scrollbar-thumb { border-width: 2px !important; }
-
-  /* main column: full width, minimal side padding */
-  [data-testid="stMainBlockContainer"] {
-    padding: 0.8rem 0.7rem 3rem !important;
-  }
-
-  /* On phones the "expanded" sidebar becomes a fixed overlay on the RIGHT, so
-     it covers the content instead of squeezing it into a sliver (which caused
-     wrapped/overlapping text). Content stays full-width behind it; the sidebar's
-     ◀ button still collapses it off-screen. */
+  h1 { font-size: 1.45rem !important; }
+  h2 { font-size: 1.25rem !important; }
+  h3 { font-size: 1.1rem !important; }
+  h4 { font-size: 1rem !important; }
+  ::-webkit-scrollbar { width: 8px !important; height: 8px !important; }
+  [data-testid="stMainBlockContainer"] { padding: .8rem .7rem 3rem !important; }
+  /* the "expanded" sidebar becomes a fixed overlay on the RIGHT */
   [data-testid="stSidebar"] {
-    position: fixed !important;
-    top: 0 !important; bottom: 0 !important;
+    position: fixed !important; top: 0 !important; bottom: 0 !important;
     right: 0 !important; left: auto !important;
     width: min(86vw, 330px) !important; max-width: 86vw !important;
-    height: 100% !important;
-    z-index: 999990 !important;
+    height: 100% !important; z-index: 999990 !important;
     box-shadow: -8px 0 34px rgba(15,23,42,0.30) !important;
   }
   [data-testid="stMain"] { width: 100% !important; }
-
-  /* stack multi-column rows vertically so nothing is squished */
-  [data-testid="stMain"] [data-testid="stHorizontalBlock"] {
-    flex-direction: column !important;
-  }
+  [data-testid="stMain"] [data-testid="stHorizontalBlock"] { flex-direction: column !important; }
   [data-testid="stMain"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
     width: 100% !important; flex: 1 1 100% !important; min-width: 0 !important;
   }
-
-  /* brand logo smaller */
-  .brand-logo { padding: 0.7rem 0.8rem; }
-  .brand-logo .logo-emoji { font-size: 1.5rem; }
-  .brand-logo .logo-name { font-size: 1.1rem; }
-  .brand-logo .logo-tag { font-size: 0.66rem; }
-
-  /* header band + banners: less padding, smaller text */
-  .eldercare-header { padding: 1rem 1.1rem; border-radius: 14px; }
-  .eldercare-header h2 { font-size: 1.3rem; }
-  .eldercare-header .subtitle { font-size: 0.9rem; }
-  .org-banner { padding: 0.7rem 0.9rem; }
-  .org-banner-name { font-size: 1.15rem; }
-  .resident-banner { font-size: 1rem; padding: 0.5rem 0.8rem; }
-
-  /* cards: smaller radius + lighter shadow */
-  [data-testid="stMain"] [data-testid="stExpander"],
-  [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] {
-    border-radius: 12px !important;
-    box-shadow: 0 4px 14px rgba(15,23,42,0.07) !important;
-  }
-
-  /* buttons: comfortable, not oversized */
+  .page-head h1 { font-size: 1.3rem !important; }
+  .ph-icon { width: 40px; height: 40px; font-size: 22px; }
+  .eldercare-header { padding: .8rem .9rem; }
+  .eh-avatar { width: 46px; height: 46px; font-size: 1.05rem; }
+  .eldercare-header h2 { font-size: 1.2rem !important; }
+  .org-banner { padding: .7rem .85rem; }
   .stButton button, .stDownloadButton button, .stFormSubmitButton button {
-    font-size: 0.98rem !important;
-    padding: 0.55rem 0.9rem !important;
-    min-height: 2.6rem !important;
+    font-size: .95rem !important; padding: .45rem .8rem !important; min-height: 2.5rem !important;
   }
-
-  /* tabs shrink so more fit before wrapping */
-  .stTabs [data-baseweb="tab"] {
-    font-size: 0.85rem !important;
-    padding: 0.4rem 0.55rem !important;
-  }
-
-  /* metrics */
-  [data-testid="stMetric"] { padding: 0.6rem 0.8rem; }
-  [data-testid="stMetricValue"] { font-size: 1.4rem; }
-
-  /* dataframes/tables scroll horizontally rather than overflow the page */
+  .stTabs [data-baseweb="tab"] { font-size: .85rem !important; padding: .35rem .55rem !important; }
+  [data-testid="stMetric"] { padding: .6rem .8rem; }
+  [data-testid="stMetricValue"] { font-size: 1.35rem; }
   [data-testid="stDataFrame"], [data-testid="stTable"] { overflow-x: auto !important; }
-
-  /* back-to-top: smaller and tucked into the corner */
-  .back-to-top-link { width: 44px; height: 44px; font-size: 1.3rem; bottom: 16px; }
+  .back-to-top-link { width: 42px; height: 42px; font-size: 1.15rem; bottom: 16px; }
 }
 </style>
 """
@@ -752,22 +598,15 @@ h4 { font-size: 1.15rem !important; font-weight: 600 !important; }
 # RTL-only overrides — applied just when language is Hebrew/Arabic.
 RTL_CSS = """
 <style>
-/* Smooth scrolling everywhere */
 html { scroll-behavior: smooth; }
 
 /* RTL applies to the inner text content, NOT to the outer flex/scroll
-   containers — flipping `[data-testid="stAppViewContainer"]` itself was
-   what broke the scroll bar. Apply direction only on stMain. */
-/* RTL text. */
+   containers (flipping stAppViewContainer itself broke the scroll bar). */
 [data-testid="stMain"] { direction: rtl; text-align: right; }
 [data-testid="stSidebar"] { direction: rtl; text-align: right; }
 [data-testid="stSidebar"] * { text-align: right; }
 
-/* Streamlit's markdown blocks and widget labels default to LEFT alignment (the
-   document stays LTR to keep the cloud sidebar). Under rtl that made Hebrew text
-   hug the LEFT edge — it read like English. Force it to the right so the whole
-   page reads properly right-to-left. Truly-centered custom cards opt back in with
-   an inline `text-align:center`, which still wins over this. */
+/* Markdown blocks and widget labels default to LEFT; force right. */
 [data-testid="stMain"] [data-testid="stMarkdownContainer"],
 [data-testid="stMain"] [data-testid="stMarkdownContainer"] p,
 [data-testid="stMain"] [data-testid="stMarkdownContainer"] h1,
@@ -783,22 +622,15 @@ html { scroll-behavior: smooth; }
 [data-testid="stMain"] label {
   text-align: right;
 }
-/* Custom info cards built with raw HTML: right-align their inner text too. */
 [data-testid="stMain"] .eldercare-header,
-[data-testid="stMain"] .eldercare-header .subtitle,
 [data-testid="stMain"] .org-banner,
-[data-testid="stMain"] .resident-banner {
-  text-align: right;
-}
+[data-testid="stMain"] .resident-banner { text-align: right; }
 
-/* Sidebar on the RIGHT (RTL-correct), on every width, via `row-reverse` on the
-   top-level [sidebar, main] flex container. The document is kept LTR (only lang
-   is set, not dir) because dir=rtl on <html> made Streamlit Cloud's iframe drop
-   the sidebar; RTL *text* is applied on stMain/stSidebar below. On phones the
-   sidebar is a fixed overlay (mobile block), so this flip doesn't affect it. */
+/* Sidebar on the RIGHT (RTL-correct) via row-reverse on the top-level
+   [sidebar, main] container. The document stays LTR (only lang is set, not
+   dir) because dir=rtl on <html> made Streamlit Cloud drop the sidebar. */
 [data-testid="stAppViewContainer"] { flex-direction: row-reverse; }
 
-/* Inputs RTL. */
 .stTextInput input, .stTextArea textarea, .stNumberInput input,
 .stDateInput input { direction: rtl; text-align: right; }
 
@@ -808,17 +640,8 @@ html { scroll-behavior: smooth; }
 /* Phone / email / URL fragments stay LTR inside RTL prose. */
 .ltr-text { direction: ltr; display: inline-block; unicode-bidi: embed; }
 
-/* Day cards: switch border side. */
-.activity-item { border-right: none; border-left: 5px solid #94a3b8; }
-.activity-item.done { border-left-color: #059669; }
-
-/* Activity time spacing flip. */
-.activity-time { margin-left: 0; margin-right: 0.5rem; }
-.activity-cat-pill { margin-right: 0; margin-left: 0.4rem; }
-.primary-badge { margin-right: 0; margin-left: 0.4rem; }
-
 /* In RTL the floating "back to top" button moves to the left edge. */
-.back-to-top-link { right: auto !important; left: 28px !important; }
+.back-to-top-link { right: auto !important; left: 24px !important; }
 </style>
 """
 
