@@ -63,7 +63,6 @@
   "goal_source_manual": "Manual",
   "goal_active": "Active",
   "goals_saved": "Goals saved",
-
   "language": "Language",
   "save": "Save",
   "cancel": "Cancel",
@@ -74,10 +73,8 @@
   "delete": "Delete",
   "yes": "Yes",
   "no": "No",
-  "back": "Back",
   "add": "Add",
   "edit": "Edit",
-
   "select_elder": "Select Elder",
   "no_elder_selected": "No elder selected",
   "add_elder": "Add New Elder",
@@ -89,7 +86,6 @@
   "room_number": "Room Number",
   "primary_language": "Primary Language",
   "notes": "Notes",
-
   "dim_medical": "Medical",
   "dim_medication": "Medication",
   "dim_nursing": "Nursing",
@@ -115,26 +111,21 @@
   "outdoor_full": "Full",
   "outdoor_limited": "Limited",
   "outdoor_none": "None",
-
   "weights_section": "Weights (relative importance)",
   "weights_help": "Set 1=less important ... 10=critical. Optimizer balances accordingly.",
   "capability_level": "Capability Level (1-5)",
   "capability_help": "1=fully dependent, 5=fully independent",
-
   "preferences_categories": "Preferred Activity Categories",
   "preferences_time_slots": "Preferred Time Slots",
   "preferred_activities": "Preferred Activities (boosted in the plan)",
   "preferred_activities_help": "Activities the elder or family explicitly asked for — get a higher weight bonus in scheduling",
-
   "diseases_codes": "Diagnoses / Diseases",
   "medications_codes": "Medications",
   "conditions_codes": "Nursing / Cognitive / Other Conditions",
-
   "time_morning": "Morning",
   "time_noon": "Noon",
   "time_afternoon": "Afternoon",
   "time_evening": "Evening",
-
   "plan_for_date": "Plan for ",
   "generate_plan": "Generate New Plan",
   "no_plan_today": "No plan yet. Click 'Generate New Plan' to create one.",
@@ -151,7 +142,6 @@
   "mark_skipped": "Mark Skipped",
   "save_notes": "Save Notes",
   "regenerate_with_alternatives": "Find alternatives (after skip)",
-
   "obj_score": "Optimization Score",
   "limitations_found": "Limitations Recognized",
   "needs_found": "Needs Recognized",
@@ -159,7 +149,6 @@
   "activities_count": "Activities",
   "completed_count": "Completed",
   "no_activities_day": "No activities planned for this day",
-
   "measurement_test": "Test",
   "measurement_score": "Score",
   "measurement_date": "Date",
@@ -169,7 +158,6 @@
   "test_barthel": "Barthel - Functional Index (0-100)",
   "test_mood": "Mood (1-10)",
   "test_pain": "Pain (0-10)",
-
   "report_summary": "Summary Report",
   "report_export_word": "Export Word",
   "report_export_pdf": "Export PDF",
@@ -177,28 +165,23 @@
   "report_period_days": "Period (days back)",
   "report_executions": "Execution Rate",
   "report_measurements_trend": "Ability Tests Trend",
-
   "import_pdf": "Import from PDF",
   "import_excel": "Import from Excel",
   "import_word": "Import from Word",
   "import_help": "Upload the elder's file - the system will try to extract diagnoses, medications, notes",
-
   "kb_diseases_count": "Diseases in bank",
   "kb_medications_count": "Medications in bank",
   "kb_conditions_count": "Conditions in bank",
   "kb_activities_count": "Activities in bank",
   "refresh_kb": "Refresh Knowledge Banks from Excel",
-
   "saved_ok": "Saved successfully",
   "error_generic": "Error: ",
   "elder_added": "Elder added successfully",
   "profile_saved": "Profile saved",
   "plan_generated": "Plan generated",
-
   "executed_total": "Total Executed",
   "skipped_total": "Total Skipped",
   "completion_rate": "Completion Rate",
-
   "external_programs": "Local Programs",
   "add_external_program": "Add External Program",
   "program_name": "Program Name",
@@ -207,7 +190,6 @@
   "program_contact": "Contact",
   "program_cost": "Cost",
   "program_languages": "Languages",
-
   "day_sunday": "Sunday",
   "day_monday": "Monday",
   "day_tuesday": "Tuesday",
@@ -221,7 +203,6 @@
   "generate_weekly": "Generate Weekly Plan",
   "generating": "Generating...",
   "week_range": "Week",
-
   "cat_physical": "Physical",
   "cat_cognitive": "Cognitive",
   "cat_social": "Social",
@@ -231,7 +212,6 @@
   "cat_sport": "Sport",
   "kb_exercises_count": "Exercises in bank",
   "exercises_section": "Strength & Aerobic Exercises",
-
   "family_contacts": "Family & Contacts",
   "family_relation": "Relation",
   "family_name": "Name",
@@ -255,7 +235,6 @@
   "rel_friend": "Friend",
   "rel_other": "Other",
   "primary_badge": "Primary",
-
   "weight_level_minimal": "Not important",
   "weight_level_low": "Slightly important",
   "weight_level_medium": "Important",
@@ -273,7 +252,6 @@
   "meal_dinner": "Dinner",
   "meal_time": "Time",
   "meal_duration": "Duration (min)",
-
   "tab_short_profile": "Profile",
   "tab_short_culture": "Culture",
   "tab_short_family": "Family",
@@ -299,5 +277,43 @@
   "religion_preview": "What will be added to the plan:",
   "religion_limitations_label": "Derived Limitations",
   "religion_needs_label": "Reinforced Needs",
-  "religion_no_limits": "No extra limitations"
+  "religion_no_limits": "No extra limitations",
+  "sb_staff_title": "Staff",
+  "sb_permission": "Permission",
+  "nav_staff": "Staff & permissions",
+  "ph_caregiver": "Everything about the resident, organised by domain.",
+  "ph_goals": "Care goals derived from the profile. Edit, add or remove.",
+  "ph_weekly": "Seven days at a glance. Generate the whole week or a single day.",
+  "ph_daily": "The selected day by time slot, with execution marking.",
+  "ph_tracking": "Execution, skip reasons and instructor feedback.",
+  "ph_manager": "Facility overview: residents, goals, group planning, charts and reports.",
+  "ph_rules": "Facility rules are kept in a Word file. Time rules are enforced automatically.",
+  "ph_knowledge": "The knowledge banks behind the planner, and online sources.",
+  "ph_staff": "Who uses the system, in which role, and what each permission allows.",
+  "ph_accessibility": "Accessibility statement.",
+  "tab_medical": "Medical & nursing",
+  "tab_social_family": "Social & family",
+  "tab_living_meals": "Living & meals",
+  "tab_prefs_weights": "Preferences & weights",
+  "mgr_tab_overview": "Overview",
+  "mgr_tab_goals": "Goal achievement",
+  "mgr_tab_planning": "Facility planning",
+  "mgr_tab_charts": "Charts",
+  "mgr_tab_reports": "Reports",
+  "active_residents": "Active residents",
+  "per_elder_summary": "Per-resident summary",
+  "download": "Download",
+  "kb_tab_diseases": "Diseases",
+  "kb_tab_medications": "Medications",
+  "kb_tab_conditions": "Conditions",
+  "kb_tab_activities": "Activities",
+  "why_label": "Why:",
+  "health": "Health",
+  "cat_meal": "Meal",
+  "cat_external": "Community activity",
+  "cat_holiday": "Holiday",
+  "cat_general": "General",
+  "prev_short": "Prev",
+  "next_short": "Next",
+  "open_day": "Open"
 }

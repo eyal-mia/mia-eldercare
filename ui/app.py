@@ -13,6 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 import datetime as dt
+import html as _html
 import json
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -30,6 +31,8 @@ from models.optimizer import (
 from ui.i18n import t, SUPPORTED, is_rtl
 from ui import file_import
 from ui import styling
+from ui import permissions as perms
+from ui import labels
 from reports import export as report_export
 
 
@@ -92,9 +95,37 @@ def _ensure_plans_current() -> None:
         conn.close()
 
 
+def _ensure_demo_instructor() -> None:
+    """Demo: make sure there is one activity instructor (מדריך/ת תעסוקה), so the
+    role-based permissions can be shown. Runs once; never touches existing staff."""
+    conn = get_connection()
+    try:
+        has = conn.execute(
+            "SELECT COUNT(*) FROM org_staff WHERE role_key = 'instructor'"
+        ).fetchone()[0]
+        if has:
+            return
+        org = conn.execute(
+            "SELECT organization_id, COUNT(*) FROM org_staff WHERE active = 1 "
+            "GROUP BY organization_id ORDER BY 2 DESC LIMIT 1"
+        ).fetchone()
+        if not org:
+            return
+        conn.execute(
+            "INSERT INTO org_staff (organization_id, role_key, role_label, name, "
+            "phone, email, notes, sort_order, active) VALUES (?,?,?,?,?,?,?,?,1)",
+            (org[0], "instructor", "מדריכת תעסוקה", "שירה אלון", "", "",
+             "משתמשת לדוגמה להצגת הרשאות", 99),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 try:
     _ensure_demo_seeded()
     _ensure_plans_current()
+    _ensure_demo_instructor()
 except Exception as _seed_err:  # never let seeding block the app from loading
     st.warning(f"טעינת נתוני הדמו דילגה: {_seed_err}")
 
@@ -132,6 +163,11 @@ LANG = st.session_state.lang
 styling.inject(LANG)
 
 
+def _esc(v) -> str:
+    """Escape user-entered text before it goes into raw HTML."""
+    return _html.escape(str(v if v is not None else ""), quote=True)
+
+
 def _current_user() -> str:
     """Name of the currently 'logged-in' role-holder — used to attribute the
     plans / tracking that a staff member enters ('who entered what')."""
@@ -149,104 +185,159 @@ def _stamp_plan_author(conn, elder_id, plan_date_iso) -> None:
         conn.commit()
 
 
+def _initials(name: str) -> str:
+    parts = [p for p in (name or "").split()
+             if p and p[0].isalpha() and not any(ch in p for ch in '״"\'.')]
+    return "".join(p[0] for p in parts[:2]) or "?"
+
+
 def _render_user_login() -> None:
-    """Sidebar (right side): choose which institution role-holder you are — like
-    a user login. Whatever you then enter (plans, tracking) is attributed to you.
-    Also lets you add / edit / remove role-holders."""
+    """Sidebar: choose which institution role-holder you are — like a user
+    login. Whatever you then enter (plans, tracking) is attributed to you, and
+    the role decides which screens and actions are available (ui/permissions)."""
     conn = get_connection()
     staff = conn.execute(
-        "SELECT id, organization_id, role_label, name, phone, email, notes "
+        "SELECT id, organization_id, role_key, role_label, name, phone, email, notes "
         "FROM org_staff WHERE active = 1 ORDER BY sort_order, id"
     ).fetchall()
-    org_id = staff[0]["organization_id"] if staff else (
-        (conn.execute("SELECT id FROM organizations LIMIT 1").fetchone() or [None])[0]
-    )
-    st.markdown("---")
-    st.markdown("<div class='sb-user-title'>👥 בעלי תפקידים</div>",
-                unsafe_allow_html=True)
+    conn.close()
 
-    person = None
+    st.markdown(f"<div class='sb-group'>{t('sb_staff_title', LANG)}</div>",
+                unsafe_allow_html=True)
     if staff:
         ids = [s["id"] for s in staff]
-        labels = {s["id"]: f"{s['name']} · {s['role_label']}" for s in staff}
+        names = {s["id"]: f"{s['name']} · {s['role_label']}" for s in staff}
         if st.session_state.get("current_user_id") not in ids:
             st.session_state.current_user_id = ids[0]
         st.selectbox("מחובר/ת כ:", options=ids,
-                     format_func=lambda i: labels.get(i, "-"),
+                     format_func=lambda i: names.get(i, "-"),
                      key="current_user_id")
         person = next(
             (s for s in staff if s["id"] == st.session_state.current_user_id), staff[0])
         st.session_state.current_user_name = person["name"]
         st.session_state.current_user_role = person["role_label"]
+        st.session_state.current_user_profile = perms.profile_of(person["role_key"])
+        prof = perms.PROFILES[st.session_state.current_user_profile]
         st.markdown(
-            f"<div class='sb-user-badge'>✅ <b>{person['name']}</b>"
-            f"<br><span>{person['role_label']}</span></div>",
+            f"<div class='sb-user'>"
+            f"<div class='sb-avatar' aria-hidden='true'>{_esc(_initials(person['name']))}</div>"
+            f"<div class='sb-user-text'><div class='sb-user-name'>{_esc(person['name'])}</div>"
+            f"<div class='sb-user-role'>{_esc(person['role_label'])}</div></div></div>"
+            f"<div class='sb-perm' title='{_esc(prof['desc'])}'>"
+            f"<span>{t('sb_permission', LANG)}:</span> <b>{_esc(prof['label'])}</b></div>",
             unsafe_allow_html=True,
         )
     else:
         st.session_state.current_user_name = ""
-        st.caption("אין בעלי תפקידים — הוסף/י למטה.")
+        st.session_state.current_user_profile = "director"
+        st.caption("אין בעלי תפקידים — הוסף/י במסך ״בעלי תפקידים והרשאות״.")
 
-    # ---- manage role-holders (add / edit / remove) ----
-    _sid = person["id"] if person else "new"
-    with st.expander("⚙️ ניהול בעלי תפקידים", expanded=False):
-        with st.form("sb_staff_form"):
-            f_role = st.text_input("תפקיד", value=(person["role_label"] if person else ""),
-                                   key=f"sbrole_{_sid}")
-            f_name = st.text_input("שם", value=((person["name"] if person else "") or ""),
-                                   key=f"sbname_{_sid}")
-            f_phone = st.text_input("טלפון", value=((person["phone"] if person else "") or ""),
-                                    key=f"sbphone_{_sid}")
-            f_email = st.text_input("אימייל", value=((person["email"] if person else "") or ""),
-                                    key=f"sbemail_{_sid}")
-            bc = st.columns(3)
-            do_save = bc[0].form_submit_button("💾 שמור") if person else False
-            do_add = bc[1].form_submit_button("➕ חדש")
-            do_del = bc[2].form_submit_button("🗑️ מחק") if person else False
-        if do_save and person:
-            conn.execute(
-                "UPDATE org_staff SET role_label=?, name=?, phone=?, email=? WHERE id=?",
-                (f_role, f_name, f_phone, f_email, person["id"]))
-            conn.commit()
-            st.rerun()
-        if do_add:
-            c2 = conn.cursor()
-            c2.execute(
-                "INSERT INTO org_staff (organization_id, role_key, role_label, name, "
-                "phone, email, notes, sort_order, active) VALUES (?,?,?,?,?,?,?,?,1)",
-                (org_id, "custom", f_role or "תפקיד", f_name, f_phone, f_email, "",
-                 len(staff)))
-            st.session_state.current_user_id = c2.lastrowid
-            conn.commit()
-            st.rerun()
-        if do_del and person:
-            conn.execute("DELETE FROM org_staff WHERE id=?", (person["id"],))
-            conn.commit()
-            st.session_state.pop("current_user_id", None)
-            st.rerun()
+
+def _render_add_resident() -> None:
+    """Sidebar expander: add a new resident (same fields as before)."""
+    conn = get_connection()
+    has_elders = conn.execute(
+        "SELECT COUNT(*) FROM elders WHERE active = 1").fetchone()[0]
+    with st.expander("➕ " + t("add_elder", LANG), expanded=not has_elders):
+        with st.form("add_elder_form"):
+            name = st.text_input(t("elder_name", LANG))
+            birth = st.date_input(
+                t("birth_date", LANG),
+                value=dt.date(1940, 1, 1),
+                min_value=dt.date(1900, 1, 1),
+                max_value=dt.date.today(),
+            )
+            gender = st.selectbox(
+                t("gender", LANG),
+                options=["female", "male"],
+                format_func=lambda v: t(v, LANG),
+            )
+            room = st.text_input(t("room_number", LANG))
+            national_id = st.text_input('מספר ת"ז')
+            lang_pref = st.selectbox(
+                t("primary_language", LANG),
+                options=list(SUPPORTED.keys()),
+                format_func=lambda c: SUPPORTED[c],
+            )
+            if st.form_submit_button(t("save", LANG), type="primary"):
+                if name.strip():
+                    cur = conn.cursor()
+                    cur.execute(
+                        "INSERT INTO elders (organization_id, full_name, birth_date, gender, room_number, primary_language, national_id) "
+                        "VALUES ((SELECT id FROM organizations LIMIT 1), ?, ?, ?, ?, ?, ?)",
+                        (name.strip(), birth.isoformat(), gender, room, lang_pref,
+                         (national_id or "").strip()),
+                    )
+                    elder_id = cur.lastrowid
+                    cur.execute(
+                        "INSERT INTO elder_profile (elder_id) VALUES (?)",
+                        (elder_id,),
+                    )
+                    conn.commit()
+                    st.session_state.elder_id = elder_id
+                    st.session_state.view = "caregiver"
+                    st.toast(t("elder_added", LANG))
+                    conn.close()
+                    st.rerun()
     conn.close()
+
+
+NAV_ICONS = {
+    "caregiver": ":material/person:",
+    "goals": ":material/flag:",
+    "weekly": ":material/calendar_view_week:",
+    "daily": ":material/today:",
+    "tracking": ":material/task_alt:",
+    "manager": ":material/monitoring:",
+    "rules": ":material/rule:",
+    "knowledge": ":material/menu_book:",
+    "staff": ":material/badge:",
+    "accessibility": ":material/accessibility_new:",
+}
+NAV_LABEL_KEYS = {
+    "caregiver": "nav_profile", "goals": "nav_goals", "weekly": "nav_weekly_plan",
+    "daily": "nav_daily_plan", "tracking": "nav_tracking", "manager": "nav_admin",
+    "rules": "nav_rules", "knowledge": "nav_knowledge", "staff": "nav_staff",
+    "accessibility": "nav_accessibility",
+}
 
 
 # ---------------- sidebar ----------------
 with st.sidebar:
-    st.session_state.lang = st.selectbox(
-        "Language / שפה",
-        options=list(SUPPORTED.keys()),
-        index=list(SUPPORTED.keys()).index(st.session_state.lang),
-        format_func=lambda c: SUPPORTED[c],
-    )
-    LANG = st.session_state.lang
-
     st.markdown(
         '<div class="brand-logo">'
-        '<span class="logo-emoji">🏡</span>'
+        '<span class="brand-mark" aria-hidden="true">M</span>'
         '<span><span class="logo-name">MIA</span>'
         '<span class="logo-tag">Maximizing of Independence &amp; Autonomy</span></span>'
         '</div>',
         unsafe_allow_html=True,
     )
 
-    # ---- resident switcher (top of the sidebar, right under the brand) ----
+    # logged-in staff user (role-holder) — attribution + permissions
+    _render_user_login()
+
+    # if the role cannot open the current screen, move to its first screen
+    if not perms.can_view(st.session_state.view):
+        st.session_state.view = perms.allowed_views()[0]
+
+    def _nav_button(view_key: str):
+        if not perms.can_view(view_key):
+            return
+        active = st.session_state.view == view_key
+        if st.button(
+            t(NAV_LABEL_KEYS[view_key], LANG),
+            key=f"nav_{view_key}",
+            icon=NAV_ICONS[view_key],
+            width="stretch",
+            type="primary" if active else "secondary",
+        ):
+            st.session_state.view = view_key
+            st.rerun()
+
+    # ----- ELDER DATA: resident switcher + the resident's screens -----
+    st.markdown(f"<div class='sb-group'>{t('nav_group_elder', LANG)}</div>",
+                unsafe_allow_html=True)
+
     # This is the single, app-wide "current resident" control. It stays in sync
     # with st.session_state.elder_id even when other views change it (e.g. the
     # manager directory click-through), via a shadow value that detects external
@@ -279,64 +370,48 @@ with st.sidebar:
             i = ids.index(st.session_state.nav_elder_pick)
             st.session_state.nav_elder_pick = ids[min(max(i + delta, 0), len(ids) - 1)]
 
-        st.markdown(
-            f"<div class='resident-pick-label'>🧓 {t('current_resident', LANG)}</div>",
-            unsafe_allow_html=True,
-        )
         st.selectbox(
             t("current_resident", LANG),
             options=_sb_ids,
             format_func=lambda i: _sb_names.get(i, "-"),
             key="nav_elder_pick",
-            label_visibility="collapsed",
         )
         _cur_i = _sb_ids.index(st.session_state.nav_elder_pick)
-        _pn = st.columns(2)
-        _pn[0].button("→", key="sb_prev_res", width="stretch",
-                      disabled=_cur_i == 0, on_click=_shift_resident, args=(-1,),
-                      help=t("prev_resident", LANG))
-        _pn[1].button("←", key="sb_next_res", width="stretch",
-                      disabled=_cur_i >= len(_sb_ids) - 1,
-                      on_click=_shift_resident, args=(1,),
-                      help=t("next_resident", LANG))
+        _pick = st.columns(2)
+        _pick[0].button(t("prev_short", LANG), key="sb_prev_res", width="stretch",
+                        icon=":material/chevron_right:",
+                        disabled=_cur_i == 0, on_click=_shift_resident, args=(-1,),
+                        help=t("prev_resident", LANG))
+        _pick[1].button(t("next_short", LANG), key="sb_next_res", width="stretch",
+                        icon=":material/chevron_left:",
+                        disabled=_cur_i >= len(_sb_ids) - 1,
+                        on_click=_shift_resident, args=(1,),
+                        help=t("next_resident", LANG))
         # commit the pick as the app-wide current resident
         st.session_state.elder_id = st.session_state.nav_elder_pick
         st.session_state._elder_id_shadow = st.session_state.elder_id
 
-    # logged-in staff user (role-holder) — attribution of who enters what
-    _render_user_login()
+    for _vk in ("caregiver", "goals", "weekly", "daily", "tracking"):
+        _nav_button(_vk)
+    if perms.can("edit_resident"):
+        _render_add_resident()
 
-    # navigation is split into two groups: elder-specific data vs general
-    # (institution-wide) data. Buttons let us render group headers.
-    def _nav_button(view_key: str, icon: str, label_key: str):
-        active = st.session_state.view == view_key
-        if st.button(
-            f"{icon} {t(label_key, LANG)}",
-            key=f"nav_{view_key}",
-            width="stretch",
-            type="primary" if active else "secondary",
-        ):
-            st.session_state.view = view_key
-            st.rerun()
+    # ----- GENERAL (institution-wide) DATA -----
+    if any(perms.can_view(v) for v in ("manager", "rules", "knowledge", "staff")):
+        st.markdown(f"<div class='sb-group'>{t('nav_group_general', LANG)}</div>",
+                    unsafe_allow_html=True)
+    for _vk in ("manager", "rules", "knowledge", "staff"):
+        _nav_button(_vk)
 
-    # ----- ELDER DATA -----
-    st.markdown(f"#### 👤 {t('nav_group_elder', LANG)}")
-    _nav_button("caregiver", "👤", "nav_profile")
-    _nav_button("goals", "🎯", "nav_goals")
-    _nav_button("daily", "📅", "nav_daily_plan")
-    _nav_button("weekly", "🗓️", "nav_weekly_plan")
-    _nav_button("tracking", "📌", "nav_tracking")
-
-    st.markdown("---")
-
-    # ----- GENERAL DATA -----
-    st.markdown(f"#### 🏢 {t('nav_group_general', LANG)}")
-    _nav_button("manager", "📊", "nav_admin")
-    _nav_button("knowledge", "📚", "nav_knowledge")
-    _nav_button("rules", "📋", "nav_rules")
-    _nav_button("accessibility", "♿", "nav_accessibility")
-
-    st.markdown("---")
+    st.markdown("<div class='sb-sep'></div>", unsafe_allow_html=True)
+    _nav_button("accessibility")
+    st.selectbox(
+        "Language / שפה",
+        options=list(SUPPORTED.keys()),
+        format_func=lambda c: SUPPORTED[c],
+        key="lang",
+    )
+    LANG = st.session_state.lang
 
 
 # ---------------- helpers ----------------
@@ -444,9 +519,33 @@ def _resident_banner(conn, elder_id, LANG) -> None:
         return
     room = row["room_number"] or "-"
     st.markdown(
-        f"<div class='resident-banner'>🧓 <b>{row['full_name']}</b>"
-        f"<span class='rb-room'>· {t('room_number', LANG)} {room}</span>"
-        f"<span class='rb-hint'>({t('current_resident', LANG)})</span></div>",
+        f"<div class='resident-banner'>"
+        f"<span class='rb-avatar' aria-hidden='true'>{_esc(_initials(row['full_name']))}</span>"
+        f"<b>{_esc(row['full_name'])}</b>"
+        f"<span class='rb-room'>{t('room_number', LANG)} {_esc(room)}</span>"
+        f"<span class='rb-hint'>{t('current_resident', LANG)}</span></div>",
+        unsafe_allow_html=True,
+    )
+
+
+CHART_PAIR = ["#A9CDBD", "#1D6A56"]   # scheduled (light) / done (brand)
+CHART_ONE = "#1D6A56"
+
+PAGE_ICONS = {
+    "caregiver": "person", "goals": "flag", "weekly": "calendar_view_week",
+    "daily": "today", "tracking": "task_alt", "manager": "monitoring",
+    "rules": "rule", "knowledge": "menu_book", "staff": "badge",
+    "accessibility": "accessibility_new",
+}
+
+
+def _page_header(view_key: str, title: str, subtitle: str | None = None) -> None:
+    """Uniform page title: icon tile + title + one-line description."""
+    icon = PAGE_ICONS.get(view_key, "dashboard")
+    sub = f"<p>{_esc(subtitle)}</p>" if subtitle and not subtitle.startswith("ph_") else ""
+    st.markdown(
+        f"<div class='page-head'><span class='ph-icon' aria-hidden='true'>{icon}</span>"
+        f"<div class='ph-text'><h1>{_esc(title)}</h1>{sub}</div></div>",
         unsafe_allow_html=True,
     )
 
@@ -457,57 +556,14 @@ def _resident_banner(conn, elder_id, LANG) -> None:
 def view_caregiver(LANG: str):
     conn = get_connection()
     elders = _list_elders(conn)
-
-    with st.sidebar:
-        st.markdown("---")
-        with st.expander("➕ " + t("add_elder", LANG), expanded=not elders):
-            with st.form("add_elder_form"):
-                name = st.text_input(t("elder_name", LANG))
-                birth = st.date_input(
-                    t("birth_date", LANG),
-                    value=dt.date(1940, 1, 1),
-                    min_value=dt.date(1900, 1, 1),
-                    max_value=dt.date.today(),
-                )
-                gender = st.selectbox(
-                    t("gender", LANG),
-                    options=["female", "male"],
-                    format_func=lambda v: t(v, LANG),
-                )
-                room = st.text_input(t("room_number", LANG))
-                national_id = st.text_input('מספר ת"ז')
-                lang_pref = st.selectbox(
-                    t("primary_language", LANG),
-                    options=list(SUPPORTED.keys()),
-                    format_func=lambda c: SUPPORTED[c],
-                )
-                if st.form_submit_button(t("save", LANG)):
-                    if name.strip():
-                        cur = conn.cursor()
-                        cur.execute(
-                            "INSERT INTO elders (organization_id, full_name, birth_date, gender, room_number, primary_language, national_id) "
-                            "VALUES ((SELECT id FROM organizations LIMIT 1), ?, ?, ?, ?, ?, ?)",
-                            (name.strip(), birth.isoformat(), gender, room, lang_pref,
-                             (national_id or "").strip()),
-                        )
-                        elder_id = cur.lastrowid
-                        cur.execute(
-                            "INSERT INTO elder_profile (elder_id) VALUES (?)",
-                            (elder_id,),
-                        )
-                        conn.commit()
-                        st.session_state.elder_id = elder_id
-                        st.success(t("elder_added", LANG))
-                        st.rerun()
-
-        # resident selection now lives in the main sidebar (top, under the brand)
+    _page_header("caregiver", t("nav_profile", LANG), t("ph_caregiver", LANG))
 
     if not elders:
         st.info(t("no_elder_selected", LANG))
         conn.close()
         return
 
-    elder_id = st.session_state.elder_id
+    elder_id = _current_elder_id(conn)
     elder = conn.execute("SELECT * FROM elders WHERE id = ?", (elder_id,)).fetchone()
     profile = conn.execute("SELECT * FROM elder_profile WHERE elder_id = ?", (elder_id,)).fetchone()
 
@@ -541,33 +597,30 @@ def view_caregiver(LANG: str):
         except Exception:
             org_rules = _g("institution_rules")
         # The person shown in the header = whoever is currently logged in
-        # (the role-holder picked in the sidebar), not a fixed contact —
-        # "the name that matches who is using the system". Falls back to the
-        # institution's stored contact if nobody is logged in.
         _cur_u = _current_user()
         _cur_role = (st.session_state.get("current_user_role") or "").strip()
         if _cur_u:
             _who = _cur_u + (f" · {_cur_role}" if _cur_role else "")
-            contact_html = (f'<div class="org-banner-contact">'
-                            f'👤 משתמש/ת מחובר/ת: {_who}</div>')
+            contact_html = (f'<span class="org-chip">👤 משתמש/ת מחובר/ת: '
+                            f'{_esc(_who)}</span>')
         elif org_contact:
-            contact_html = f'<div class="org-banner-contact">👤 {org_contact}</div>'
+            contact_html = f'<span class="org-chip">👤 {_esc(org_contact)}</span>'
         else:
             contact_html = ''
         st.markdown(
             f"""
             <div class="org-banner">
               <div class="org-banner-top">
-                <span class="org-banner-name">{org_emoji} {org_name}</span>
-                {f'<span class="org-banner-manager">👔 {org_manager}</span>' if org_manager else ''}
+                <span class="org-banner-name">{_esc(org_emoji)} {_esc(org_name)}</span>
+                {f'<span class="org-banner-manager">👔 {_esc(org_manager)}</span>' if org_manager else ''}
               </div>
               <div class="org-banner-row">
-                {f'<span>📍 {addr_full}</span>' if addr_full else ''}
-                {f'<span>📞 <span class="ltr-text">{org_phone}</span></span>' if org_phone else ''}
-                {f'<span>✉️ <span class="ltr-text">{org_email}</span></span>' if org_email else ''}
+                {f'<span class="org-chip">📍 {_esc(addr_full)}</span>' if addr_full else ''}
+                {f'<span class="org-chip">📞 <span class="ltr-text">{_esc(org_phone)}</span></span>' if org_phone else ''}
+                {f'<span class="org-chip">✉️ <span class="ltr-text">{_esc(org_email)}</span></span>' if org_email else ''}
+                {contact_html}
               </div>
-              {contact_html}
-              {f'<div class="org-banner-desc">{org_desc}</div>' if org_desc else ''}
+              {f'<div class="org-banner-desc">{_esc(org_desc)}</div>' if org_desc else ''}
             </div>
             """,
             unsafe_allow_html=True,
@@ -578,7 +631,7 @@ def view_caregiver(LANG: str):
                 for ln in rules_lines:
                     st.markdown(f"• {ln}")
 
-    # ---- RESIDENT box (name + ת"ז + room), AFTER the institution details ----
+    # ---- RESIDENT card (name + ת"ז + room), AFTER the institution details ----
     age = ""
     if elder["birth_date"]:
         try:
@@ -587,14 +640,18 @@ def view_caregiver(LANG: str):
         except Exception:
             pass
     _nid = elder["national_id"] if "national_id" in elder.keys() and elder["national_id"] else ""
+    _meta = [f"{t('room_number', LANG)} {_esc(elder['room_number'] or '-')}"]
+    if _nid and perms.can("view_sensitive"):
+        _meta.append('🪪 ת"ז ' + _esc(_nid))
+    if age:
+        _meta.append(age)
+    _meta.append(_esc(t(elder['gender'] or 'other', LANG)))
+    _meta.append(_esc(SUPPORTED.get(elder['primary_language'], '-')))
     st.markdown(
         f"""<div class="eldercare-header">
-        <h2>👤 {elder['full_name']}</h2>
-        <div class="subtitle">
-          {t('room_number', LANG)} {elder['room_number'] or '-'} ·
-          {('🪪 ת"ז ' + _nid + ' · ') if _nid else ''}{age} ·
-          {t(elder['gender'] or 'other', LANG)} ·
-          {SUPPORTED.get(elder['primary_language'], '-')}
+        <div class="eh-avatar" aria-hidden="true">{_esc(_initials(elder['full_name']))}</div>
+        <div class="eh-body"><h2>{_esc(elder['full_name'])}</h2>
+        <div class="subtitle">{''.join(f'<span class="eh-chip">{m}</span>' for m in _meta)}</div>
         </div></div>""",
         unsafe_allow_html=True,
     )
@@ -611,16 +668,17 @@ def view_caregiver(LANG: str):
         WHERE dp.elder_id = ? AND dp.plan_date >= ?
           AND pi.activity_code NOT LIKE 'MEAL_%'
     """, (elder_id, _pc)).fetchone()
-    with st.expander(f"📊 {t('participation_title', LANG)} (30 יום)", expanded=False):
-        sched = _prow["sched"] or 0
-        pcols = st.columns(4)
-        pcols[0].metric(t("tracking_summary_done", LANG), _prow["done"] or 0)
-        pcols[1].metric(t("tracking_summary_skipped", LANG), _prow["skipped"] or 0)
-        pcols[2].metric(t("completion_rate", LANG),
-                        f"{((_prow['done'] or 0)/sched*100) if sched else 0:.0f}%")
-        pcols[3].metric("⭐ " + t("instructor_review_title", LANG),
-                        f"{_prow['avg_rating']:.1f}" if _prow["avg_rating"] else "—")
-        # participation by category
+    st.markdown(f"<div class='section-label'>📊 {t('participation_title', LANG)} (30 יום)</div>",
+                unsafe_allow_html=True)
+    sched = _prow["sched"] or 0
+    pcols = st.columns(4)
+    pcols[0].metric(t("tracking_summary_done", LANG), _prow["done"] or 0)
+    pcols[1].metric(t("tracking_summary_skipped", LANG), _prow["skipped"] or 0)
+    pcols[2].metric(t("completion_rate", LANG),
+                    f"{((_prow['done'] or 0)/sched*100) if sched else 0:.0f}%")
+    pcols[3].metric("⭐ " + t("instructor_review_title", LANG),
+                    f"{_prow['avg_rating']:.1f}" if _prow["avg_rating"] else "—")
+    with st.expander(f"📊 {t('participation_by_category', LANG)}", expanded=False):
         catrows = conn.execute("""
             SELECT CASE
                      WHEN ka.code IS NOT NULL THEN ka.category
@@ -647,48 +705,124 @@ def view_caregiver(LANG: str):
                 "קטגוריה": catmap.get(r["cat"], r["cat"]),
                 "מתוזמן": r["total"], "בוצע": r["done"],
             } for r in catrows])
-            st.markdown(f"**{t('participation_by_category', LANG)}**")
-            st.bar_chart(dfp.set_index("קטגוריה")[["מתוזמן", "בוצע"]], height=260)
+            st.bar_chart(dfp.set_index("קטגוריה")[["מתוזמן", "בוצע"]], color=CHART_PAIR, height=260)
         else:
             st.caption("אין עדיין נתוני השתתפות.")
 
-    # short tab labels for a single-line row that fits on one screen
-    # NOTE: daily & weekly care plans moved OUT to their own sidebar views
-    # (📅 תוכנית טיפול יומית / 🗓️ תוכנית טיפול שבועית).
+    # The resident file is split into tabs by domain. The four profile tabs
+    # (medical, social, living, preferences) are ONE record: each tab has a save
+    # button and every button saves the whole profile, exactly as before.
     tabs = st.tabs([
-        "📋 " + t("tab_short_profile", LANG),
+        "🩺 " + t("tab_medical", LANG),
+        "👨‍👩‍👧 " + t("tab_social_family", LANG),
         "🕊️ " + t("tab_short_culture", LANG),
-        "👨‍👩‍👧 " + t("tab_short_family", LANG),
-        "🏛️ " + t("tab_short_external", LANG),
+        "🏠 " + t("tab_living_meals", LANG),
+        "⭐ " + t("tab_prefs_weights", LANG),
         "📈 " + t("tab_short_tests", LANG),
+        "🏛️ " + t("tab_short_external", LANG),
         "📥 " + t("tab_short_import", LANG),
     ])
 
+    kb = _profile_kb(conn)
+    saves = []
     with tabs[0]:
-        _render_profile_tab(conn, elder_id, profile, LANG)
+        v_med = _profile_section_medical(kb, profile, LANG)
+        saves.append(_profile_save_button("med", LANG))
     with tabs[1]:
-        _render_culture_tab(conn, elder_id, profile, LANG)
-    with tabs[2]:
+        v_soc = _profile_section_social(kb, profile, LANG)
+        saves.append(_profile_save_button("soc", LANG))
+        st.markdown(f"<div class='section-label'>👨‍👩‍👧 {t('family_contacts', LANG)}</div>",
+                    unsafe_allow_html=True)
         _render_family_tab(conn, elder_id, LANG)
+    with tabs[2]:
+        _render_culture_tab(conn, elder_id, profile, LANG)
     with tabs[3]:
-        _render_external_tab(conn, elder_id, LANG)
+        v_liv = _profile_section_living(elder_id, profile, LANG)
+        saves.append(_profile_save_button("liv", LANG))
     with tabs[4]:
-        _render_measurements_tab(conn, elder_id, LANG)
+        v_pref = _profile_section_prefs(kb, elder_id, profile, LANG)
+        saves.append(_profile_save_button("pref", LANG))
     with tabs[5]:
+        _render_measurements_tab(conn, elder_id, LANG)
+    with tabs[6]:
+        _render_external_tab(conn, elder_id, LANG)
+    with tabs[7]:
         _render_import_tab(conn, elder_id, LANG)
+
+    if any(saves):
+        _save_profile(conn, elder_id, {**v_med, **v_soc, **v_liv, **v_pref})
+        st.toast(t("profile_saved", LANG), icon="✅")
 
     conn.close()
 
 
-# ---------- PROFILE TAB ----------
-def _render_profile_tab(conn, elder_id, profile, LANG):
-    diseases = conn.execute("SELECT code, name_he, name_en FROM kb_diseases ORDER BY name_he").fetchall()
-    meds = conn.execute("SELECT code, name_he, name_en FROM kb_medications ORDER BY name_he").fetchall()
-    conditions = conn.execute("SELECT code, name_he, name_en, dimension FROM kb_conditions ORDER BY dimension, name_he").fetchall()
-    activities = conn.execute("SELECT code, name_he, name_en, category FROM kb_activities ORDER BY category, name_he").fetchall()
+# ---------- PROFILE TABS (one profile record, split by domain) ----------
+_DIM_TO_FIELD = {
+    "nursing": "nursing_codes",
+    "cognitive": "cognitive_codes",
+    "mental": "mental_codes",
+    "social": "social_codes",
+    "family": "family_codes",
+    # cultural codes are managed in the dedicated Culture & Religion tab
+}
 
+
+def _profile_kb(conn) -> dict:
+    conditions = conn.execute(
+        "SELECT code, name_he, name_en, dimension FROM kb_conditions ORDER BY dimension, name_he"
+    ).fetchall()
+    cond_by_dim = {}
+    for r in conditions:
+        cond_by_dim.setdefault(r["dimension"], []).append(r)
+    return {
+        "diseases": conn.execute("SELECT code, name_he, name_en FROM kb_diseases ORDER BY name_he").fetchall(),
+        "meds": conn.execute("SELECT code, name_he, name_en FROM kb_medications ORDER BY name_he").fetchall(),
+        "cond_by_dim": cond_by_dim,
+        "activities": conn.execute("SELECT code, name_he, name_en, category FROM kb_activities ORDER BY category, name_he").fetchall(),
+    }
+
+
+def _profile_save_button(tag: str, LANG) -> bool:
+    return st.button("💾 " + t("save", LANG), type="primary", key=f"profile_save_{tag}",
+                     disabled=not perms.can("edit_resident"),
+                     help=perms.help_if_denied("edit_resident"))
+
+
+def _pget_row(profile, key, default=None):
+    if not profile:
+        return default
+    try:
+        return profile[key]
+    except (KeyError, IndexError):
+        return default
+
+
+def _condition_selects(kb, profile, LANG, dims) -> dict:
     name_field = "name_he" if LANG == "he" else "name_en"
+    cond_by_dim = kb["cond_by_dim"]
+    out = {}
+    vis = [d for d in dims if d in cond_by_dim]
+    cols = st.columns(2)
+    for i, dim in enumerate(vis):
+        rows = cond_by_dim[dim]
+        with cols[i % 2]:
+            current = _split(_pget_row(profile, _DIM_TO_FIELD[dim]))
+            label_key = f"dim_{dim}"
+            label = t(label_key, LANG) if t(label_key, LANG) != label_key else dim
+            out[dim] = st.multiselect(
+                label,
+                options=[r["code"] for r in rows],
+                format_func=lambda c, rr=rows: next(
+                    (f"{r[name_field]}" for r in rr if r["code"] == c), c
+                ),
+                default=current,
+            )
+    return out
 
+
+def _profile_section_medical(kb, profile, LANG) -> dict:
+    name_field = "name_he" if LANG == "he" else "name_en"
+    diseases, meds = kb["diseases"], kb["meds"]
     st.markdown(f"#### 🏥 {t('diseases_codes', LANG)} / 💊 {t('medications_codes', LANG)}")
     cc = st.columns(2)
     with cc[0]:
@@ -705,55 +839,24 @@ def _render_profile_tab(conn, elder_id, profile, LANG):
             format_func=lambda c: next((f"{r[name_field]}" for r in meds if r["code"] == c), c),
             default=_split(profile["medication_codes"]) if profile else [],
         )
-
     st.markdown(f"#### 🧩 {t('conditions_codes', LANG)}")
-    cond_by_dim = {}
-    for r in conditions:
-        cond_by_dim.setdefault(r["dimension"], []).append(r)
+    by_dim = _condition_selects(kb, profile, LANG, ["nursing", "cognitive", "mental"])
+    return {"medical_codes": sel_diseases, "medication_codes": sel_meds, "dims": by_dim}
 
-    dim_to_field = {
-        "nursing": "nursing_codes",
-        "cognitive": "cognitive_codes",
-        "mental": "mental_codes",
-        "social": "social_codes",
-        "family": "family_codes",
-        # cultural codes are managed in the dedicated Culture & Religion tab
-    }
-    sel_by_dim = {}
-    # only show dimensions that map to a CSV codes field (skip demographic — it
-    # has structured columns rendered separately below)
-    visible_dims = [d for d in cond_by_dim.keys() if d in dim_to_field]
-    cols = st.columns(2)
-    for i, dim in enumerate(visible_dims):
-        rows = cond_by_dim[dim]
-        with cols[i % 2]:
-            field = dim_to_field[dim]
-            try:
-                current = _split(profile[field]) if profile else []
-            except (KeyError, IndexError):
-                current = []
-            label_key = f"dim_{dim}"
-            label = t(label_key, LANG) if t(label_key, LANG) != label_key else dim
-            sel_by_dim[dim] = st.multiselect(
-                label,
-                options=[r["code"] for r in rows],
-                format_func=lambda c, rr=rows: next(
-                    (f"{r[name_field]}" for r in rr if r["code"] == c), c
-                ),
-                default=current,
-            )
 
+def _profile_section_social(kb, profile, LANG) -> dict:
+    st.markdown(f"#### 👥 {t('dim_social', LANG)} / {t('dim_family', LANG)}")
+    by_dim = _condition_selects(kb, profile, LANG, ["social", "family"])
+    return {"dims_social": by_dim}
+
+
+def _profile_section_living(elder_id, profile, LANG) -> dict:
     # ---------- LIVING ENVIRONMENT (= demographic dimension) ----------
     st.markdown(f"#### 🏠 {t('dim_demographic', LANG)} — {t('living_section', LANG)}")
     st.caption(t("living_help", LANG))
 
     def _pget(key, default=None):
-        if not profile:
-            return default
-        try:
-            return profile[key]
-        except (KeyError, IndexError):
-            return default
+        return _pget_row(profile, key, default)
 
     lcols = st.columns(4)
     arrangement_opts = ["home_alone", "home_family", "assisted_living",
@@ -793,7 +896,7 @@ def _render_profile_tab(conn, elder_id, profile, LANG):
     if residence_floor > 2 and not has_elevator and outdoor_accessibility != "none":
         st.warning("⚠️ קומה גבוהה ללא מעלית - האופטימייזר יחסום פעילויות חוץ אוטומטית")
     if outdoor_accessibility == "none":
-        st.info("ℹ️ אין נגישות לחוץ - פעילויות outdoor (טיולים, חצר) ייחסמו")
+        st.info("ℹ️ אין נגישות לחוץ - פעילויות בחוץ (טיולים, חצר) ייחסמו")
 
     # ---------- MEAL TIMES (auto-blocked in the plan) ----------
     st.markdown(f"#### 🍽️ {t('meals_section', LANG)}")
@@ -806,60 +909,44 @@ def _render_profile_tab(conn, elder_id, profile, LANG):
         except Exception:
             return fallback
 
+    meals = {}
     bcols = st.columns(3)
-    with bcols[0]:
-        st.markdown(f"**🌅 {t('meal_breakfast', LANG)}**")
-        breakfast_t = st.time_input(
-            t("meal_time", LANG),
-            value=_parse_time(_pget("breakfast_time"), dt.time(8, 0)),
-            key=f"meal_b_t_{elder_id}",
-        )
-        breakfast_d = st.number_input(
-            t("meal_duration", LANG),
-            min_value=10, max_value=120,
-            value=int(_pget("breakfast_duration", 60) or 60),
-            step=5,
-            key=f"meal_b_d_{elder_id}",
-        )
-    with bcols[1]:
-        st.markdown(f"**☀️ {t('meal_lunch', LANG)}**")
-        lunch_t = st.time_input(
-            t("meal_time", LANG),
-            value=_parse_time(_pget("lunch_time"), dt.time(12, 0)),
-            key=f"meal_l_t_{elder_id}",
-        )
-        lunch_d = st.number_input(
-            t("meal_duration", LANG),
-            min_value=10, max_value=120,
-            value=int(_pget("lunch_duration", 60) or 60),
-            step=5,
-            key=f"meal_l_d_{elder_id}",
-        )
-    with bcols[2]:
-        st.markdown(f"**🌙 {t('meal_dinner', LANG)}**")
-        dinner_t = st.time_input(
-            t("meal_time", LANG),
-            value=_parse_time(_pget("dinner_time"), dt.time(18, 0)),
-            key=f"meal_d_t_{elder_id}",
-        )
-        dinner_d = st.number_input(
-            t("meal_duration", LANG),
-            min_value=10, max_value=120,
-            value=int(_pget("dinner_duration", 60) or 60),
-            step=5,
-            key=f"meal_d_d_{elder_id}",
-        )
+    for col, (key, icon, label, dflt) in zip(bcols, [
+        ("breakfast", "🌅", "meal_breakfast", dt.time(8, 0)),
+        ("lunch", "☀️", "meal_lunch", dt.time(12, 0)),
+        ("dinner", "🌙", "meal_dinner", dt.time(18, 0)),
+    ]):
+        with col:
+            st.markdown(f"**{icon} {t(label, LANG)}**")
+            meals[f"{key}_time"] = st.time_input(
+                t("meal_time", LANG),
+                value=_parse_time(_pget(f"{key}_time"), dflt),
+                key=f"meal_{key[0]}_t_{elder_id}",
+            )
+            meals[f"{key}_duration"] = st.number_input(
+                t("meal_duration", LANG),
+                min_value=10, max_value=120,
+                value=int(_pget(f"{key}_duration", 60) or 60),
+                step=5,
+                key=f"meal_{key[0]}_d_{elder_id}",
+            )
+    return {
+        "living_arrangement": living_arrangement,
+        "residence_floor": int(residence_floor),
+        "has_elevator": int(bool(has_elevator)),
+        "outdoor_accessibility": outdoor_accessibility,
+        **meals,
+    }
 
+
+def _profile_section_prefs(kb, elder_id, profile, LANG) -> dict:
+    name_field = "name_he" if LANG == "he" else "name_en"
+    activities = kb["activities"]
     st.markdown(f"#### ⚖️ {t('weights_section', LANG)}")
     st.caption(t("weights_help", LANG))
 
     def _safe_weight(p, key, fallback=5.0):
-        if not p:
-            return float(fallback)
-        try:
-            v = p[key]
-        except (KeyError, IndexError):
-            return float(fallback)
+        v = _pget_row(p, key, None)
         if v is None:
             return float(fallback)
         try:
@@ -921,15 +1008,13 @@ def _render_profile_tab(conn, elder_id, profile, LANG):
 
     st.markdown(f"#### 🎯 {t('capability_level', LANG)} & {t('preferences_categories', LANG)}")
     st.caption(t("capability_help", LANG))
-    # capability_level — selectbox with descriptive labels (1=dep, 5=indep)
     cap_default = 3
-    if profile:
-        try:
-            _cv = profile["capability_level"]
-            if _cv is not None:
-                cap_default = max(1, min(5, int(_cv)))
-        except (KeyError, IndexError, TypeError, ValueError):
-            cap_default = 3
+    try:
+        _cv = _pget_row(profile, "capability_level")
+        if _cv is not None:
+            cap_default = max(1, min(5, int(_cv)))
+    except (TypeError, ValueError):
+        cap_default = 3
     CAP_LEVELS = [
         (1, "1 · " + t("cap_level_full_dep", LANG)),
         (2, "2 · " + t("cap_level_high_dep", LANG)),
@@ -987,52 +1072,60 @@ def _render_profile_tab(conn, elder_id, profile, LANG):
         default=_preferred_default,
         label_visibility="collapsed",
     )
+    return {"weights": weight_values, "capability_level": cap,
+            "preferences_categories": pref_cats, "preferences_time_slots": pref_slots,
+            "preferred_activity_codes": preferred}
 
-    if st.button("💾 " + t("save", LANG), type="primary"):
-        cur = conn.cursor()
-        cur.execute("""
-            UPDATE elder_profile SET
-              medical_codes = ?, medication_codes = ?,
-              nursing_codes = ?, cognitive_codes = ?, mental_codes = ?,
-              social_codes = ?, family_codes = ?,
-              preferences_categories = ?, preferences_time_slots = ?,
-              preferred_activity_codes = ?,
-              weight_medical = ?, weight_medication = ?, weight_nursing = ?,
-              weight_cognitive = ?, weight_mental = ?, weight_social = ?,
-              weight_family = ?, weight_demographic = ?, weight_cultural = ?,
-              weight_preference = ?,
-              capability_level = ?,
-              living_arrangement = ?, residence_floor = ?,
-              has_elevator = ?, outdoor_accessibility = ?,
-              breakfast_time = ?, breakfast_duration = ?,
-              lunch_time = ?, lunch_duration = ?,
-              dinner_time = ?, dinner_duration = ?,
-              updated_at = CURRENT_TIMESTAMP
-            WHERE elder_id = ?
-        """, (
-            _join(sel_diseases), _join(sel_meds),
-            _join(sel_by_dim.get("nursing", [])),
-            _join(sel_by_dim.get("cognitive", [])),
-            _join(sel_by_dim.get("mental", [])),
-            _join(sel_by_dim.get("social", [])),
-            _join(sel_by_dim.get("family", [])),
-            _join(pref_cats), _join(pref_slots), _join(preferred),
-            weight_values["weight_medical"], weight_values["weight_medication"],
-            weight_values["weight_nursing"], weight_values["weight_cognitive"],
-            weight_values["weight_mental"], weight_values["weight_social"],
-            weight_values["weight_family"], weight_values["weight_demographic"],
-            weight_values["weight_cultural"],
-            weight_values["weight_preference"],
-            cap,
-            living_arrangement, int(residence_floor),
-            int(bool(has_elevator)), outdoor_accessibility,
-            breakfast_t.strftime("%H:%M"), int(breakfast_d),
-            lunch_t.strftime("%H:%M"), int(lunch_d),
-            dinner_t.strftime("%H:%M"), int(dinner_d),
-            elder_id,
-        ))
-        conn.commit()
-        st.success(t("profile_saved", LANG))
+
+def _save_profile(conn, elder_id, v: dict) -> None:
+    """Save the whole profile record (same columns as the original single
+    save button)."""
+    dims = {**v.get("dims", {}), **v.get("dims_social", {})}
+    w = v["weights"]
+    cur = conn.cursor()
+    cur.execute("""
+        UPDATE elder_profile SET
+          medical_codes = ?, medication_codes = ?,
+          nursing_codes = ?, cognitive_codes = ?, mental_codes = ?,
+          social_codes = ?, family_codes = ?,
+          preferences_categories = ?, preferences_time_slots = ?,
+          preferred_activity_codes = ?,
+          weight_medical = ?, weight_medication = ?, weight_nursing = ?,
+          weight_cognitive = ?, weight_mental = ?, weight_social = ?,
+          weight_family = ?, weight_demographic = ?, weight_cultural = ?,
+          weight_preference = ?,
+          capability_level = ?,
+          living_arrangement = ?, residence_floor = ?,
+          has_elevator = ?, outdoor_accessibility = ?,
+          breakfast_time = ?, breakfast_duration = ?,
+          lunch_time = ?, lunch_duration = ?,
+          dinner_time = ?, dinner_duration = ?,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE elder_id = ?
+    """, (
+        _join(v["medical_codes"]), _join(v["medication_codes"]),
+        _join(dims.get("nursing", [])),
+        _join(dims.get("cognitive", [])),
+        _join(dims.get("mental", [])),
+        _join(dims.get("social", [])),
+        _join(dims.get("family", [])),
+        _join(v["preferences_categories"]), _join(v["preferences_time_slots"]),
+        _join(v["preferred_activity_codes"]),
+        w["weight_medical"], w["weight_medication"],
+        w["weight_nursing"], w["weight_cognitive"],
+        w["weight_mental"], w["weight_social"],
+        w["weight_family"], w["weight_demographic"],
+        w["weight_cultural"],
+        w["weight_preference"],
+        v["capability_level"],
+        v["living_arrangement"], v["residence_floor"],
+        v["has_elevator"], v["outdoor_accessibility"],
+        v["breakfast_time"].strftime("%H:%M"), int(v["breakfast_duration"]),
+        v["lunch_time"].strftime("%H:%M"), int(v["lunch_duration"]),
+        v["dinner_time"].strftime("%H:%M"), int(v["dinner_duration"]),
+        elder_id,
+    ))
+    conn.commit()
 
 
 # ---------- FAMILY CONTACTS TAB ----------
@@ -1389,11 +1482,11 @@ def _render_external_tab(conn, elder_id, LANG):
 def _render_daily_plan_tab(conn, elder_id, LANG):
     c1, c2, c3 = st.columns([2, 1, 1])
     with c1:
-        plan_date = st.date_input(
-            t("plan_for_date", LANG),
-            value=dt.date.today(),
-            key="plan_date",
-        )
+        if "_goto_plan_date" in st.session_state:      # opened from a weekly day card
+            st.session_state.plan_date = st.session_state.pop("_goto_plan_date")
+        elif "plan_date" not in st.session_state:
+            st.session_state.plan_date = dt.date.today()
+        plan_date = st.date_input(t("plan_for_date", LANG), key="plan_date")
     plan_date_iso = plan_date.isoformat()
 
     plan = conn.execute(
@@ -1402,7 +1495,9 @@ def _render_daily_plan_tab(conn, elder_id, LANG):
     ).fetchone()
 
     with c2:
-        if st.button("✨ " + t("generate_plan", LANG), type="primary", width="stretch"):
+        if st.button("✨ " + t("generate_plan", LANG), type="primary", width="stretch",
+                     disabled=not perms.can("generate_plans"),
+                     help=perms.help_if_denied("generate_plans")):
             try:
                 result = generate_plan_for_elder(elder_id, plan_date_iso)
                 _stamp_plan_author(conn, elder_id, plan_date_iso)
@@ -1417,7 +1512,9 @@ def _render_daily_plan_tab(conn, elder_id, LANG):
                 with st.expander("פרטי שגיאה (טכני)"):
                     st.code(_tb.format_exc())
     with c3:
-        if plan and st.button("🔄 " + t("regenerate", LANG), width="stretch"):
+        if plan and st.button("🔄 " + t("regenerate", LANG), width="stretch",
+                              disabled=not perms.can("generate_plans"),
+                              help=perms.help_if_denied("generate_plans")):
             try:
                 generate_plan_for_elder(elder_id, plan_date_iso)
                 _stamp_plan_author(conn, elder_id, plan_date_iso)
@@ -1433,94 +1530,95 @@ def _render_daily_plan_tab(conn, elder_id, LANG):
         _gb = plan["generated_by"] if "generated_by" in plan.keys() else None
         if _gb:
             st.markdown(
-                f"<div class='entered-by'>📝 התוכנית הוזנה ע\"י <b>{_gb}</b></div>",
+                f"<div class='entered-by'>📝 התוכנית הוזנה ע\"י <b>{_esc(_gb)}</b></div>",
                 unsafe_allow_html=True,
             )
 
     # manual add picker — visible whether a plan exists or not
-    with st.expander("➕ הוסף פעילות ידנית"):
-        src = st.radio(
-            "מקור",
-            options=["activities", "exercises", "external"],
-            format_func=lambda s: {
-                "activities": "📚 מבנק פעילויות",
-                "exercises": "🏃 מבנק תרגילים",
-                "external": "🏛️ מתוכניות חיצוניות",
-            }[s],
-            horizontal=True,
-            key=f"manual_src_{plan_date_iso}",
-        )
-        if src == "activities":
-            rows = conn.execute(
-                "SELECT code, name_he, name_en, duration_min "
-                "FROM kb_activities ORDER BY name_he LIMIT 500"
-            ).fetchall()
-        elif src == "exercises":
-            rows = conn.execute(
-                "SELECT code, name_he, name_en, duration_min "
-                "FROM kb_exercises ORDER BY name_he LIMIT 500"
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT 'EXT_' || id AS code, name AS name_he, "
-                "name AS name_en, duration_min "
-                "FROM external_programs ORDER BY name"
-            ).fetchall()
-
-        name_field = "name_he" if LANG == "he" else "name_en"
-        chosen_code = st.selectbox(
-            "פעילות",
-            options=[r["code"] for r in rows],
-            format_func=lambda c, rr=rows: next(
-                (f"{r[name_field]} ({r['code']})" for r in rr if r["code"] == c), c
-            ),
-            key=f"manual_pick_{plan_date_iso}",
-        )
-        mcols = st.columns([2, 2, 2, 1])
-        slot_choice = mcols[0].selectbox(
-            "חלון זמן",
-            options=["morning", "noon", "afternoon", "evening"],
-            format_func=lambda s: t(f"time_{s}", LANG),
-            key=f"manual_slot_{plan_date_iso}",
-        )
-        time_input = mcols[1].text_input(
-            "שעה (HH:MM)", value={"morning": "10:00", "noon": "12:30",
-                                  "afternoon": "16:00", "evening": "19:00"}[slot_choice],
-            key=f"manual_time_{plan_date_iso}",
-        )
-        chosen_row = next((r for r in rows if r["code"] == chosen_code), None)
-        # sqlite3.Row doesn't support .get() — read by key with a try/except
-        default_dur = 30
-        if chosen_row is not None:
-            try:
-                default_dur = int(chosen_row["duration_min"] or 30)
-            except (KeyError, IndexError, TypeError, ValueError):
-                default_dur = 30
-        manual_dur = mcols[2].number_input(
-            "משך (דק')", min_value=5, max_value=180,
-            value=default_dur,
-            key=f"manual_dur_{plan_date_iso}",
-        )
-        if mcols[3].button("➕ הוסף", type="primary",
-                           key=f"manual_add_{plan_date_iso}"):
-            try:
-                chosen_name = chosen_row[name_field] if chosen_row else chosen_code
-            except (KeyError, IndexError):
-                chosen_name = chosen_code
-            chosen_name = chosen_name or ""
-            ok = _add_item_to_plan(
-                conn, elder_id, plan_date_iso,
-                activity_code=chosen_code,
-                time_slot=slot_choice,
-                start_time=time_input,
-                duration_min=int(manual_dur),
-                rationale=f"➕ הוסף ידנית: {chosen_name}",
+    if perms.can("generate_plans"):
+        with st.expander("➕ הוסף פעילות ידנית"):
+            src = st.radio(
+                "מקור",
+                options=["activities", "exercises", "external"],
+                format_func=lambda s: {
+                    "activities": "📚 מבנק פעילויות",
+                    "exercises": "🏃 מבנק תרגילים",
+                    "external": "🏛️ מתוכניות חיצוניות",
+                }[s],
+                horizontal=True,
+                key=f"manual_src_{plan_date_iso}",
             )
-            if ok:
-                st.success("נוסף לתוכנית")
+            if src == "activities":
+                rows = conn.execute(
+                    "SELECT code, name_he, name_en, duration_min "
+                    "FROM kb_activities ORDER BY name_he LIMIT 500"
+                ).fetchall()
+            elif src == "exercises":
+                rows = conn.execute(
+                    "SELECT code, name_he, name_en, duration_min "
+                    "FROM kb_exercises ORDER BY name_he LIMIT 500"
+                ).fetchall()
             else:
-                st.info("כבר קיים בתוכנית")
-            st.rerun()
+                rows = conn.execute(
+                    "SELECT 'EXT_' || id AS code, name AS name_he, "
+                    "name AS name_en, duration_min "
+                    "FROM external_programs ORDER BY name"
+                ).fetchall()
+
+            name_field = "name_he" if LANG == "he" else "name_en"
+            chosen_code = st.selectbox(
+                "פעילות",
+                options=[r["code"] for r in rows],
+                format_func=lambda c, rr=rows: next(
+                    (f"{r[name_field]} ({r['code']})" for r in rr if r["code"] == c), c
+                ),
+                key=f"manual_pick_{plan_date_iso}",
+            )
+            mcols = st.columns([2, 2, 2, 1])
+            slot_choice = mcols[0].selectbox(
+                "חלון זמן",
+                options=["morning", "noon", "afternoon", "evening"],
+                format_func=lambda s: t(f"time_{s}", LANG),
+                key=f"manual_slot_{plan_date_iso}",
+            )
+            time_input = mcols[1].text_input(
+                "שעה (HH:MM)", value={"morning": "10:00", "noon": "12:30",
+                                      "afternoon": "16:00", "evening": "19:00"}[slot_choice],
+                key=f"manual_time_{plan_date_iso}",
+            )
+            chosen_row = next((r for r in rows if r["code"] == chosen_code), None)
+            # sqlite3.Row doesn't support .get() — read by key with a try/except
+            default_dur = 30
+            if chosen_row is not None:
+                try:
+                    default_dur = int(chosen_row["duration_min"] or 30)
+                except (KeyError, IndexError, TypeError, ValueError):
+                    default_dur = 30
+            manual_dur = mcols[2].number_input(
+                "משך (דק')", min_value=5, max_value=180,
+                value=default_dur,
+                key=f"manual_dur_{plan_date_iso}",
+            )
+            if mcols[3].button("➕ הוסף", type="primary",
+                               key=f"manual_add_{plan_date_iso}"):
+                try:
+                    chosen_name = chosen_row[name_field] if chosen_row else chosen_code
+                except (KeyError, IndexError):
+                    chosen_name = chosen_code
+                chosen_name = chosen_name or ""
+                ok = _add_item_to_plan(
+                    conn, elder_id, plan_date_iso,
+                    activity_code=chosen_code,
+                    time_slot=slot_choice,
+                    start_time=time_input,
+                    duration_min=int(manual_dur),
+                    rationale=f"➕ הוסף ידנית: {chosen_name}",
+                )
+                if ok:
+                    st.success("נוסף לתוכנית")
+                else:
+                    st.info("כבר קיים בתוכנית")
+                st.rerun()
 
     if not plan:
         st.info(t("no_plan_today", LANG))
@@ -1587,29 +1685,30 @@ def _render_daily_plan_tab(conn, elder_id, LANG):
         c = styling.category_color(category)
         cat_label = t(f"cat_{category}", LANG)
         if cat_label == f"cat_{category}":
-            cat_label = category
+            cat_label = labels.category_label(category)
 
         with st.container(border=True):
-            cols = st.columns([3, 1, 1])
+            cols = st.columns([3, 1, 1], vertical_alignment="center")
             with cols[0]:
-                title = it[name_field] or it["activity_code"]
-                done_marker = "✅ " if it["executed"] else ""
+                title = labels.item_name(it["activity_code"], it[name_field])
+                done_marker = "<span class='done-tick'>✓</span>" if it["executed"] else ""
                 st.markdown(
-                    f"<div style='border-right:4px solid {c['border']};padding-right:10px;'>"
-                    f"<strong style='color:{c['text']};font-size:1.05rem;'>{done_marker}"
-                    f"🕐 {it['start_time']} - {title}</strong></div>",
+                    f"<div class='plan-item' style='--cat:{c['border']}'>"
+                    f"<span class='pi-time'>{_esc(it['start_time'])}</span>"
+                    f"<span class='pi-title'>{done_marker}{_esc(title)}</span></div>",
                     unsafe_allow_html=True,
                 )
                 # Pill + meta as a wrapping flex row so the category pill and the
-                # duration/rationale text never sit on top of each other when the
-                # rationale is long enough to wrap.
+                # duration/rationale chips never sit on top of each other.
                 st.markdown(
-                    "<div style='display:flex;flex-wrap:wrap;align-items:center;"
-                    "gap:0.25rem 0.5rem;'>"
+                    "<div class='pi-meta'>"
                     + styling.render_category_pill(category, cat_label)
-                    + f"<span style='color:#4b5563;font-size:0.85rem;'>⏱️ "
-                    f"{it['duration_min']} {t('duration_min', LANG)} | 🎯 "
-                    f"{it['rationale'] or '-'}</span></div>",
+                    + f"<span class='pi-dur'>⏱️ {it['duration_min']} {t('duration_min', LANG)}</span>"
+                    + (f"<span class='why'>{t('why_label', LANG)}</span>"
+                       + labels.rationale_html(it['rationale'])
+                       if it['rationale'] and not str(it['activity_code']).startswith("MEAL_")
+                       else "")
+                    + "</div>",
                     unsafe_allow_html=True,
                 )
                 if it["description_he"]:
@@ -1651,26 +1750,32 @@ def _render_weekly_plan_tab(conn, elder_id, LANG):
     week_start = st.session_state.week_start
 
     # week navigator
-    ncols = st.columns([1, 3, 1, 1])
+    ncols = st.columns([1, 3, 1, 1], vertical_alignment="center")
     with ncols[0]:
-        if st.button("← " + t("prev_week", LANG), width="stretch", key="prev_wk"):
+        if st.button(t("prev_week", LANG), icon=":material/chevron_right:",
+                     width="stretch", key="prev_wk"):
             st.session_state.week_start = week_start - dt.timedelta(days=7)
             st.rerun()
     with ncols[1]:
         end = week_start + dt.timedelta(days=6)
         st.markdown(
-            f"### 🗓️ {t('week_range', LANG)} {hebrew_date(week_start)} – {hebrew_date(end)}"
+            f"<div class='week-title'>{t('week_range', LANG)} "
+            f"<b>{hebrew_date(week_start)} – {hebrew_date(end)}</b></div>",
+            unsafe_allow_html=True,
         )
     with ncols[2]:
         if st.button(t("current_week", LANG), width="stretch", key="this_wk"):
             st.session_state.week_start = week_start_sunday(dt.date.today())
             st.rerun()
     with ncols[3]:
-        if st.button(t("next_week", LANG) + " →", width="stretch", key="next_wk"):
+        if st.button(t("next_week", LANG), icon=":material/chevron_left:",
+                     width="stretch", key="next_wk"):
             st.session_state.week_start = week_start + dt.timedelta(days=7)
             st.rerun()
 
-    if st.button("✨ " + t("generate_weekly", LANG), type="primary", key="gen_weekly"):
+    if st.button("✨ " + t("generate_weekly", LANG), type="primary", key="gen_weekly",
+                 disabled=not perms.can("generate_plans"),
+                 help=perms.help_if_denied("generate_plans")):
         with st.spinner(t("generating", LANG)):
             try:
                 generate_weekly_plan_for_elder(elder_id, st.session_state.week_start)
@@ -1712,6 +1817,7 @@ def _render_day_card(conn, elder_id, day_date, day_idx, LANG, name_field, today_
                    COALESCE(ka.name_en, ke.name_en,
                             ep.name, SUBSTR(pi.activity_code, 5)) AS name_en,
                    CASE
+                     WHEN pi.activity_code LIKE 'MEAL_%' THEN 'meal'
                      WHEN ka.code IS NOT NULL THEN ka.category
                      WHEN ke.code IS NOT NULL THEN 'sport'
                      WHEN ep.id IS NOT NULL  THEN 'external'
@@ -1741,19 +1847,17 @@ def _render_day_card(conn, elder_id, day_date, day_idx, LANG, name_field, today_
         cat = it["category"] or "general"
         c = styling.category_color(cat)
         done_cls = " done" if it["executed"] else ""
-        title = it[name_field] or it["activity_code"]
+        title = labels.item_name(it["activity_code"], it[name_field])
         inner_items_html += (
-            f'<div class="activity-item{done_cls}" '
-            f'style="border-right-color:{c["border"]};">'
-            f'<span class="activity-time">{it["start_time"]}</span> '
-            f'<span style="color:{c["text"]}">{c["icon"]}</span> '
-            f'<span>{title}</span>'
+            f'<div class="activity-item{done_cls}" style="--cat:{c["border"]};">'
+            f'<span class="activity-time">{_esc(it["start_time"])}</span>'
+            f'<span class="activity-icon" aria-hidden="true">{c["icon"]}</span>'
+            f'<span class="activity-name">{_esc(title)}</span>'
             f'</div>'
         )
     if not items:
         inner_items_html = (
-            f'<div style="color:#4b5563;font-style:italic;font-size:0.85rem;">'
-            f'{t("no_activities_day", LANG)}</div>'
+            f'<div class="day-empty">{t("no_activities_day", LANG)}</div>'
         )
 
     st.markdown(
@@ -1777,7 +1881,9 @@ def _render_day_card(conn, elder_id, day_date, day_idx, LANG, name_field, today_
     bcol = st.columns([1, 1])
     with bcol[0]:
         if st.button("✨ " + t("generate", LANG),
-                     key=f"day_gen_{day_date.isoformat()}", width="stretch"):
+                     key=f"day_gen_{day_date.isoformat()}", width="stretch",
+                     disabled=not perms.can("generate_plans"),
+                     help=perms.help_if_denied("generate_plans")):
             try:
                 generate_plan_for_elder(elder_id, day_date.isoformat())
                 _stamp_plan_author(conn, elder_id, day_date.isoformat())
@@ -1785,10 +1891,12 @@ def _render_day_card(conn, elder_id, day_date, day_idx, LANG, name_field, today_
             except Exception as e:
                 st.error(str(e))
     with bcol[1]:
-        if plan and st.button("📝 " + t("nav_daily_plan", LANG),
-                              key=f"day_open_{day_date.isoformat()}", width="stretch"):
-            st.session_state.plan_date = day_date
-            st.toast(f"Open Daily Plan tab to manage {day_date.isoformat()}")
+        if plan and st.button(t("open_day", LANG), icon=":material/open_in_new:",
+                              key=f"day_open_{day_date.isoformat()}", width="stretch",
+                              help=t("nav_daily_plan", LANG)):
+            st.session_state._goto_plan_date = day_date
+            st.session_state.view = "daily"
+            st.rerun()
 
 
 # ---------- MEASUREMENTS TAB ----------
@@ -1870,7 +1978,7 @@ def _render_measurements_tab(conn, elder_id, LANG):
         if len(sub) >= 2:
             st.markdown(f"#### {name_of.get(test_code, test_code)}")
             st.caption("ℹ️ " + note_of.get(test_code, ""))
-            st.line_chart(sub.set_index("measurement_date")["score"], height=200)
+            st.line_chart(sub.set_index("measurement_date")["score"], color=CHART_ONE, height=200)
 
 
 # ---------- IMPORT TAB ----------
@@ -2107,372 +2215,377 @@ def _generate_facility_weekly(conn):
 
 def view_manager(LANG: str):
     conn = get_connection()
-    st.markdown(f"# 📊 {t('nav_admin', LANG)}")
+    _page_header("manager", t('nav_admin', LANG), t("ph_manager", LANG))
 
     elders = _list_elders(conn)
 
-    # ---- RESIDENT DIRECTORY: click a name → open that resident's page ----
-    st.markdown(f"### 👥 {t('manager_directory', LANG)}")
-    st.caption(t("manager_open_resident", LANG))
-    cutoff30 = (dt.date.today() - dt.timedelta(days=30)).isoformat()
-    dir_cols = st.columns(3)
-    for i, e in enumerate(elders):
-        # quick participation rate for the badge
-        row = conn.execute("""
-            SELECT COUNT(*) AS sched,
-                   COALESCE(SUM(CASE WHEN pi.executed=1 THEN 1 ELSE 0 END),0) AS done
-            FROM plan_items pi JOIN daily_plans dp ON dp.id = pi.plan_id
-            WHERE dp.elder_id = ? AND dp.plan_date >= ?
-              AND pi.activity_code NOT LIKE 'MEAL_%'
-        """, (e["id"], cutoff30)).fetchone()
-        sched, doned = row["sched"], row["done"]
-        rate = (doned / sched * 100) if sched else 0
-        with dir_cols[i % 3]:
-            if st.button(
-                f"🧓 {e['full_name']}  ·  {rate:.0f}%",
-                key=f"dir_{e['id']}", width="stretch",
-                help=f"חדר {e['room_number'] or '-'}",
-            ):
-                st.session_state.elder_id = e["id"]
-                st.session_state.view = "caregiver"
-                st.rerun()
-
-    st.markdown("---")
-
-    # ---- GOAL ACHIEVEMENT per resident ----------------------------------
-    st.markdown("### 🎯 מידת השגת יעדי הטיפול")
-    st.caption("לכל יעד: אחוז הפעילויות שמקדמות אותו שבוצעו בפועל (30 יום)")
-    ga_elder = st.selectbox(
-        t("select_elder", LANG),
-        options=[e["id"] for e in elders] if elders else [],
-        format_func=lambda i: next(e["full_name"] for e in elders if e["id"] == i),
-        key="ga_elder_picker",
-    ) if elders else None
-    if ga_elder:
-        ach = _goal_achievement(conn, ga_elder, 30)
-        if not ach:
-            st.info("לדייר/ת זה אין עדיין יעדים. צור יעדים בלשונית 🎯 יעדי תוכנית הטיפול.")
-        else:
-            # overall (priority-weighted) achievement
-            wsum = sum(g["priority"] for g in ach if g["pct"] is not None)
-            wach = sum(g["priority"] * g["pct"] for g in ach if g["pct"] is not None)
-            overall = (wach / wsum) if wsum else 0
-            st.metric("מדד השגה כולל (משוקלל לפי עדיפות)", f"{overall:.0f}%")
-            for g in ach:
-                stars = "⭐" * g["priority"]
-                if g["pct"] is None:
-                    st.markdown(f"**{g['goal']}** {stars}")
-                    st.caption("אין עדיין פעילויות מתוזמנות שמקדמות יעד זה")
-                else:
-                    st.markdown(
-                        f"**{g['goal']}** {stars} — "
-                        f"{g['done']}/{g['planned']} בוצעו ({g['pct']:.0f}%)")
-                    st.progress(min(1.0, g["pct"] / 100))
-
-    st.markdown("---")
-
-    # ---- bulk regenerate plans -----------------------------------------
-    with st.expander("🔄 צור תוכניות לכל הדיירים (לכל ימי השבוע)"):
-        st.caption("מפעיל את האופטימייזר עבור כל דייר/ת לכל יום בשבוע הנוכחי")
-        if st.button("✨ צור תוכניות עכשיו", type="primary", key="bulk_regen"):
-            import datetime as _dt
-            import traceback as _tb
-            from models.optimizer import generate_plan_for_elder as _gen
-            today = _dt.date.today()
-            week_start = today - _dt.timedelta(days=(today.weekday() + 1) % 7)
-            ok_count = 0
-            fail_count = 0
-            errors = []
-            progress = st.progress(0.0, text="מתחיל...")
-            total = len(elders) * 7
-            done = 0
-            for e in elders:
-                for i in range(7):
-                    plan_date = (week_start + _dt.timedelta(days=i)).isoformat()
-                    done += 1
-                    progress.progress(
-                        done / total,
-                        text=f"{e['full_name']} · {plan_date}",
-                    )
-                    try:
-                        res = _gen(e["id"], plan_date)
-                        ok_count += 1
-                    except Exception as ex:
-                        fail_count += 1
-                        errors.append(
-                            f"{e['full_name']} {plan_date}: "
-                            f"{type(ex).__name__}: {ex}"
-                        )
-            progress.empty()
-            st.success(f"✅ הצליח: {ok_count} תוכניות   ❌ נכשל: {fail_count}")
-            if errors:
-                with st.expander("🐛 פרטי השגיאות"):
-                    for err in errors[:20]:
-                        st.code(err)
-
-    # ---- FACILITY-WIDE WEEKLY GROUP-ACTIVITIES BOARD --------------------
-    st.markdown("---")
-    st.markdown("### 🗓️ לוח פעילויות קבוצתיות שבועי למוסד")
-    st.caption("לוח שבועי אחד לכל המוסד, שנבנה לתת את המענה הקבוצתי המיטבי "
-               "לצרכים וליעדי הטיפול של כלל הדיירים. לכל פעילות מוצג כמה דיירים "
-               "היא משרתת, וכיסוי המפגשים מתחלק באופן הוגן בין הדיירים.")
-    if st.button("✨ צור לוח קבוצתי שבועי מיטבי", type="primary",
-                 key="gen_facility_weekly"):
-        with st.spinner("בונה לוח שבועי לכלל הדיירים..."):
-            fb, fc = _generate_facility_weekly(conn)
-            st.session_state["facility_board"] = fb
-            st.session_state["facility_cover"] = fc
-
-    fb = st.session_state.get("facility_board")
-    if fb:
-        fc = st.session_state.get("facility_cover", [])
-        if fc:
-            counts = [r["count"] for r in fc]
-            mcol = st.columns(3)
-            mcol[0].metric("ממוצע מפגשים לדייר/ת בשבוע",
-                           f"{sum(counts) / len(counts):.1f}")
-            mcol[1].metric("מינימום לדייר/ת", min(counts))
-            mcol[2].metric("מקסימום לדייר/ת", max(counts))
-        CAT_HE = {"physical": "🏃 גופני", "cognitive": "🧠 קוגניטיבי",
-                  "social": "👥 חברתי", "mental": "🌿 רגשי", "general": "📌 כללי"}
-        for day in fb:
-            if not day["sessions"]:
-                continue
-            st.markdown(f"**📆 יום {day['name']}**  ·  {day['date']}")
-            for s in day["sessions"]:
-                catlab = CAT_HE.get(s["category"], s["category"])
-                names = "، ".join(s["served_names"][:14])
-                more = (f" +{len(s['served_names']) - 14}"
-                        if len(s["served_names"]) > 14 else "")
-                st.markdown(
-                    f"<div style='padding:0.55rem 0.9rem;background:#fff;"
-                    f"border:1px solid #e5e9f2;border-radius:10px;"
-                    f"margin-bottom:0.4rem;'>"
-                    # top row: wrap cleanly on narrow screens instead of overlapping
-                    f"<div style='display:flex;flex-wrap:wrap;align-items:center;"
-                    f"gap:0.25rem 0.55rem;'>"
-                    f"<b>{s['time']}</b>"
-                    f"<b>{s['name']}</b>"
-                    f"<span style='color:#4338ca;'>{s['label']} · {catlab}</span>"
-                    f"<span style='background:#dcfce7;color:#166534;"
-                    f"border-radius:999px;padding:0.1rem 0.6rem;font-weight:700;"
-                    f"white-space:nowrap;'>👥 {s['served']} דיירים</span>"
-                    f"</div>"
-                    f"<div style='color:#4b5563;font-size:0.85rem;"
-                    f"margin-top:0.3rem;'>{names}{more}</div></div>",
-                    unsafe_allow_html=True,
-                )
-        with st.expander("👥 כיסוי לפי דייר/ת (מס' מפגשים קבוצתיים בשבוע)"):
-            st.dataframe(
-                pd.DataFrame(fc).rename(columns={
-                    "name": "דייר/ת", "count": "מפגשים קבוצתיים בשבוע"}),
-                hide_index=True, width="stretch",
-            )
-
-    st.markdown("---")
-    days_back = st.slider(t("report_period_days", LANG), 1, 90, 14)
+    # the period applies to the overview, the charts and the reports
+    _pc = st.columns([2, 3])
+    with _pc[0]:
+        days_back = st.slider(t("report_period_days", LANG), 1, 90, 14)
     cutoff = (dt.date.today() - dt.timedelta(days=days_back)).isoformat()
 
-    cols = st.columns(4)
-    cols[0].metric("👥 Elders", len(elders))
+    mtabs = st.tabs([
+        "📊 " + t("mgr_tab_overview", LANG),
+        "🎯 " + t("mgr_tab_goals", LANG),
+        "🗓️ " + t("mgr_tab_planning", LANG),
+        "📈 " + t("mgr_tab_charts", LANG),
+        "📄 " + t("mgr_tab_reports", LANG),
+    ])
 
-    items_total = conn.execute("""
-        SELECT COUNT(*) FROM plan_items pi
-        JOIN daily_plans dp ON dp.id = pi.plan_id
-        WHERE dp.plan_date >= ?
-    """, (cutoff,)).fetchone()[0]
-    items_done = conn.execute("""
-        SELECT COUNT(*) FROM plan_items pi
-        JOIN daily_plans dp ON dp.id = pi.plan_id
-        WHERE dp.plan_date >= ? AND pi.executed = 1
-    """, (cutoff,)).fetchone()[0]
-    rate = (items_done / items_total * 100) if items_total else 0
+    with mtabs[0]:
+        cols = st.columns(4)
+        cols[0].metric("👥 " + t("active_residents", LANG), len(elders))
 
-    cols[1].metric(t("executed_total", LANG), items_done)
-    cols[2].metric(t("items_scheduled", LANG), items_total)
-    cols[3].metric(t("completion_rate", LANG), f"{rate:.0f}%")
-
-    # ---- STATISTICS CHARTS ---------------------------------------------
-    st.markdown("---")
-    st.markdown("### 📈 גרפים סטטיסטיים")
-    chart_view = st.radio(
-        "סוג גרף",
-        options=["by_elder", "by_date", "by_category"],
-        horizontal=True,
-        format_func=lambda v: {
-            "by_elder": "👤 לפי דייר/ת",
-            "by_date": "📅 לפי תאריך",
-            "by_category": "🎯 לפי סוג פעילות",
-        }[v],
-        label_visibility="collapsed",
-    )
-
-    if chart_view == "by_elder":
-        df_elder = pd.read_sql("""
-            SELECT e.full_name AS elder,
-                   COUNT(pi.id) AS scheduled,
-                   COALESCE(SUM(CASE WHEN pi.executed=1 THEN 1 ELSE 0 END), 0) AS done
-            FROM elders e
-            LEFT JOIN daily_plans dp ON dp.elder_id = e.id AND dp.plan_date >= ?
-            LEFT JOIN plan_items pi ON pi.plan_id = dp.id
-            WHERE e.active = 1
-            GROUP BY e.id, e.full_name
-            ORDER BY scheduled DESC
-        """, conn, params=(cutoff,))
-
-        if df_elder.empty or df_elder["scheduled"].sum() == 0:
-            st.info("אין עדיין מספיק נתונים לגרף.")
-        else:
-            df_elder.columns = ["דייר/ת", "מתוזמן", "בוצע"]
-            st.markdown("#### פעילויות מתוכננות לעומת בוצעו")
-            st.bar_chart(df_elder.set_index("דייר/ת")[["מתוזמן", "בוצע"]],
-                         height=320)
-
-            df_elder["אחוז ביצוע"] = (
-                df_elder["בוצע"] / df_elder["מתוזמן"].clip(lower=1) * 100
-            ).round(1)
-            st.markdown("#### אחוז ביצוע (%)")
-            st.bar_chart(df_elder.set_index("דייר/ת")["אחוז ביצוע"], height=280)
-
-    elif chart_view == "by_date":
-        df_date = pd.read_sql("""
-            SELECT dp.plan_date AS plan_date,
-                   COUNT(pi.id) AS scheduled,
-                   COALESCE(SUM(CASE WHEN pi.executed=1 THEN 1 ELSE 0 END), 0) AS done
-            FROM daily_plans dp
-            LEFT JOIN plan_items pi ON pi.plan_id = dp.id
-            WHERE dp.plan_date >= ?
-            GROUP BY dp.plan_date
-            ORDER BY dp.plan_date
-        """, conn, params=(cutoff,))
-
-        if df_date.empty:
-            st.info("אין עדיין מספיק נתונים לגרף.")
-        else:
-            df_date.columns = ["תאריך", "מתוזמן", "בוצע"]
-            st.markdown("#### פעילויות לפי תאריך")
-            st.line_chart(df_date.set_index("תאריך")[["מתוזמן", "בוצע"]],
-                          height=320)
-
-            df_date["אחוז ביצוע"] = (
-                df_date["בוצע"] / df_date["מתוזמן"].clip(lower=1) * 100
-            ).round(1)
-            st.markdown("#### אחוז ביצוע יומי (%)")
-            st.area_chart(df_date.set_index("תאריך")["אחוז ביצוע"], height=240)
-
-    else:  # by_category
-        df_cat = pd.read_sql("""
-            SELECT
-              CASE
-                WHEN ka.code IS NOT NULL THEN ka.category
-                WHEN ke.code IS NOT NULL THEN 'sport'
-                WHEN ep.id IS NOT NULL  THEN 'external'
-                WHEN pi.activity_code LIKE 'HOL_%' THEN 'holiday'
-                ELSE 'general'
-              END AS category,
-              COUNT(pi.id) AS total,
-              COALESCE(SUM(CASE WHEN pi.executed=1 THEN 1 ELSE 0 END), 0) AS done
-            FROM plan_items pi
+        items_total = conn.execute("""
+            SELECT COUNT(*) FROM plan_items pi
             JOIN daily_plans dp ON dp.id = pi.plan_id
-            LEFT JOIN kb_activities ka ON ka.code = pi.activity_code
-            LEFT JOIN kb_exercises  ke ON ke.code = pi.activity_code
-            LEFT JOIN external_programs ep ON ('EXT_' || ep.id) = pi.activity_code
             WHERE dp.plan_date >= ?
-            GROUP BY category
-            ORDER BY total DESC
-        """, conn, params=(cutoff,))
+        """, (cutoff,)).fetchone()[0]
+        items_done = conn.execute("""
+            SELECT COUNT(*) FROM plan_items pi
+            JOIN daily_plans dp ON dp.id = pi.plan_id
+            WHERE dp.plan_date >= ? AND pi.executed = 1
+        """, (cutoff,)).fetchone()[0]
+        rate = (items_done / items_total * 100) if items_total else 0
 
-        if df_cat.empty:
-            st.info("אין עדיין מספיק נתונים לגרף.")
-        else:
-            cat_labels = {
-                "sport": "🏃 ספורט", "physical": "💪 פיזית",
-                "cognitive": "🧠 קוגניטיבית", "social": "👥 חברתית",
-                "mental": "🌿 נפשית", "medical": "🏥 רפואית",
-                "nursing": "🩺 סיעודית", "external": "🏛️ חיצונית",
-                "holiday": "🎉 חג", "general": "📌 כללי",
-            }
-            df_cat["category"] = df_cat["category"].map(
-                lambda c: cat_labels.get(c, c)
-            )
-            df_cat.columns = ["קטגוריה", "סהכ", "בוצעו"]
+        cols[1].metric(t("executed_total", LANG), items_done)
+        cols[2].metric(t("items_scheduled", LANG), items_total)
+        cols[3].metric(t("completion_rate", LANG), f"{rate:.0f}%")
 
-            # pie chart via Altair
-            try:
-                import altair as alt
-                st.markdown("#### חלוקה לפי קטגוריה")
-                pie = (
-                    alt.Chart(df_cat)
-                    .mark_arc(innerRadius=50, outerRadius=130)
-                    .encode(
-                        theta=alt.Theta("סהכ:Q"),
-                        color=alt.Color("קטגוריה:N",
-                                        legend=alt.Legend(title="קטגוריה")),
-                        tooltip=["קטגוריה", "סהכ", "בוצעו"],
+        # ---- RESIDENT DIRECTORY: click a name → open that resident's page ----
+        st.markdown(f"#### 👥 {t('manager_directory', LANG)}")
+        st.caption(t("manager_open_resident", LANG))
+        cutoff30 = (dt.date.today() - dt.timedelta(days=30)).isoformat()
+        dir_cols = st.columns(3)
+        for i, e in enumerate(elders):
+            # quick participation rate for the badge
+            row = conn.execute("""
+                SELECT COUNT(*) AS sched,
+                       COALESCE(SUM(CASE WHEN pi.executed=1 THEN 1 ELSE 0 END),0) AS done
+                FROM plan_items pi JOIN daily_plans dp ON dp.id = pi.plan_id
+                WHERE dp.elder_id = ? AND dp.plan_date >= ?
+                  AND pi.activity_code NOT LIKE 'MEAL_%'
+            """, (e["id"], cutoff30)).fetchone()
+            sched, doned = row["sched"], row["done"]
+            rate = (doned / sched * 100) if sched else 0
+            with dir_cols[i % 3]:
+                if st.button(
+                    f"🧓 {e['full_name']}  ·  {rate:.0f}%",
+                    key=f"dir_{e['id']}", width="stretch",
+                    help=f"חדר {e['room_number'] or '-'}",
+                ):
+                    st.session_state.elder_id = e["id"]
+                    st.session_state.view = "caregiver"
+                    st.rerun()
+
+        st.markdown("#### " + t("per_elder_summary", LANG))
+        per_elder = []
+        for e in elders:
+            sched = conn.execute("""
+                SELECT COUNT(*) FROM plan_items pi
+                JOIN daily_plans dp ON dp.id = pi.plan_id
+                WHERE dp.plan_date >= ? AND dp.elder_id = ?
+            """, (cutoff, e["id"])).fetchone()[0]
+            done = conn.execute("""
+                SELECT COUNT(*) FROM plan_items pi
+                JOIN daily_plans dp ON dp.id = pi.plan_id
+                WHERE dp.plan_date >= ? AND dp.elder_id = ? AND pi.executed = 1
+            """, (cutoff, e["id"])).fetchone()[0]
+            per_elder.append({
+                "id": e["id"],
+                t("elder_name", LANG): e["full_name"],
+                t("room_number", LANG): e["room_number"] or "-",
+                t("items_scheduled", LANG): sched,
+                t("executed_total", LANG): done,
+                t("completion_rate", LANG): f"{(done/sched*100) if sched else 0:.0f}%",
+            })
+        if per_elder:
+            st.dataframe(pd.DataFrame(per_elder).drop(columns=["id"]),
+                         width="stretch", hide_index=True)
+
+    with mtabs[1]:
+        # ---- GOAL ACHIEVEMENT per resident ----------------------------------
+        st.markdown("#### 🎯 מידת השגת יעדי הטיפול")
+        st.caption("לכל יעד: אחוז הפעילויות שמקדמות אותו שבוצעו בפועל (30 יום)")
+        ga_elder = st.selectbox(
+            t("select_elder", LANG),
+            options=[e["id"] for e in elders] if elders else [],
+            format_func=lambda i: next(e["full_name"] for e in elders if e["id"] == i),
+            key="ga_elder_picker",
+        ) if elders else None
+        if ga_elder:
+            ach = _goal_achievement(conn, ga_elder, 30)
+            if not ach:
+                st.info("לדייר/ת זה אין עדיין יעדים. צור יעדים בלשונית 🎯 יעדי תוכנית הטיפול.")
+            else:
+                # overall (priority-weighted) achievement
+                wsum = sum(g["priority"] for g in ach if g["pct"] is not None)
+                wach = sum(g["priority"] * g["pct"] for g in ach if g["pct"] is not None)
+                overall = (wach / wsum) if wsum else 0
+                st.metric("מדד השגה כולל (משוקלל לפי עדיפות)", f"{overall:.0f}%")
+                for g in ach:
+                    stars = "⭐" * g["priority"]
+                    if g["pct"] is None:
+                        st.markdown(f"**{g['goal']}** {stars}")
+                        st.caption("אין עדיין פעילויות מתוזמנות שמקדמות יעד זה")
+                    else:
+                        st.markdown(
+                            f"**{g['goal']}** {stars} — "
+                            f"{g['done']}/{g['planned']} בוצעו ({g['pct']:.0f}%)")
+                        st.progress(min(1.0, g["pct"] / 100))
+
+    with mtabs[2]:
+        # ---- bulk regenerate plans -----------------------------------------
+        with st.expander("🔄 צור תוכניות לכל הדיירים (לכל ימי השבוע)"):
+            st.caption("מפעיל את האופטימייזר עבור כל דייר/ת לכל יום בשבוע הנוכחי")
+            if st.button("✨ צור תוכניות עכשיו", type="primary", key="bulk_regen",
+                         disabled=not perms.can("bulk_plans"),
+                         help=perms.help_if_denied("bulk_plans")):
+                import datetime as _dt
+                import traceback as _tb
+                from models.optimizer import generate_plan_for_elder as _gen
+                today = _dt.date.today()
+                week_start = today - _dt.timedelta(days=(today.weekday() + 1) % 7)
+                ok_count = 0
+                fail_count = 0
+                errors = []
+                progress = st.progress(0.0, text="מתחיל...")
+                total = len(elders) * 7
+                done = 0
+                for e in elders:
+                    for i in range(7):
+                        plan_date = (week_start + _dt.timedelta(days=i)).isoformat()
+                        done += 1
+                        progress.progress(
+                            done / total,
+                            text=f"{e['full_name']} · {plan_date}",
+                        )
+                        try:
+                            res = _gen(e["id"], plan_date)
+                            ok_count += 1
+                        except Exception as ex:
+                            fail_count += 1
+                            errors.append(
+                                f"{e['full_name']} {plan_date}: "
+                                f"{type(ex).__name__}: {ex}"
+                            )
+                progress.empty()
+                st.success(f"✅ הצליח: {ok_count} תוכניות   ❌ נכשל: {fail_count}")
+                if errors:
+                    with st.expander("🐛 פרטי השגיאות"):
+                        for err in errors[:20]:
+                            st.code(err)
+
+        # ---- FACILITY-WIDE WEEKLY GROUP-ACTIVITIES BOARD --------------------
+        st.markdown("#### 🗓️ לוח פעילויות קבוצתיות שבועי למוסד")
+        st.caption("לוח שבועי אחד לכל המוסד, שנבנה לתת את המענה הקבוצתי המיטבי "
+                   "לצרכים וליעדי הטיפול של כלל הדיירים. לכל פעילות מוצג כמה דיירים "
+                   "היא משרתת, וכיסוי המפגשים מתחלק באופן הוגן בין הדיירים.")
+        if st.button("✨ צור לוח קבוצתי שבועי מיטבי", type="primary",
+                     key="gen_facility_weekly",
+                     disabled=not perms.can("bulk_plans"),
+                     help=perms.help_if_denied("bulk_plans")):
+            with st.spinner("בונה לוח שבועי לכלל הדיירים..."):
+                fb, fc = _generate_facility_weekly(conn)
+                st.session_state["facility_board"] = fb
+                st.session_state["facility_cover"] = fc
+
+        fb = st.session_state.get("facility_board")
+        if fb:
+            fc = st.session_state.get("facility_cover", [])
+            if fc:
+                counts = [r["count"] for r in fc]
+                mcol = st.columns(3)
+                mcol[0].metric("ממוצע מפגשים לדייר/ת בשבוע",
+                               f"{sum(counts) / len(counts):.1f}")
+                mcol[1].metric("מינימום לדייר/ת", min(counts))
+                mcol[2].metric("מקסימום לדייר/ת", max(counts))
+            CAT_HE = {"physical": "🏃 גופני", "cognitive": "🧠 קוגניטיבי",
+                      "social": "👥 חברתי", "mental": "🌿 רגשי", "general": "📌 כללי"}
+            for day in fb:
+                if not day["sessions"]:
+                    continue
+                st.markdown(f"**📆 יום {day['name']}**  ·  {day['date']}")
+                for s in day["sessions"]:
+                    catlab = CAT_HE.get(s["category"], s["category"])
+                    names = "، ".join(s["served_names"][:14])
+                    more = (f" +{len(s['served_names']) - 14}"
+                            if len(s["served_names"]) > 14 else "")
+                    st.markdown(
+                        f"<div class='board-session'>"
+                        f"<div class='bs-top'>"
+                        f"<span class='bs-time'>{_esc(s['time'])}</span>"
+                        f"<b>{_esc(s['name'])}</b>"
+                        f"<span class='bs-label'>{_esc(s['label'])} · {catlab}</span>"
+                        f"<span class='bs-count'>👥 {s['served']} דיירים</span>"
+                        f"</div>"
+                        f"<div class='bs-names'>{_esc(names)}{more}</div></div>",
+                        unsafe_allow_html=True,
                     )
-                    .properties(height=380)
+            with st.expander("👥 כיסוי לפי דייר/ת (מס' מפגשים קבוצתיים בשבוע)"):
+                st.dataframe(
+                    pd.DataFrame(fc).rename(columns={
+                        "name": "דייר/ת", "count": "מפגשים קבוצתיים בשבוע"}),
+                    hide_index=True, width="stretch",
                 )
-                st.altair_chart(pie, width="stretch")
-            except Exception as e:
-                st.warning(f"Altair pie chart failed: {e}")
 
-            st.markdown("#### עמודות - סך הכל ובוצעו")
-            st.bar_chart(df_cat.set_index("קטגוריה")[["סהכ", "בוצעו"]],
-                         height=320)
+    with mtabs[3]:
+        # ---- STATISTICS CHARTS ---------------------------------------------
+        st.markdown("#### 📈 גרפים סטטיסטיים")
+        chart_view = st.radio(
+            "סוג גרף",
+            options=["by_elder", "by_date", "by_category"],
+            horizontal=True,
+            format_func=lambda v: {
+                "by_elder": "👤 לפי דייר/ת",
+                "by_date": "📅 לפי תאריך",
+                "by_category": "🎯 לפי סוג פעילות",
+            }[v],
+            label_visibility="collapsed",
+        )
 
-            df_cat["אחוז ביצוע"] = (
-                df_cat["בוצעו"] / df_cat["סהכ"].clip(lower=1) * 100
-            ).round(1)
-            st.markdown("#### אחוז ביצוע לפי קטגוריה (%)")
-            st.bar_chart(df_cat.set_index("קטגוריה")["אחוז ביצוע"], height=260)
+        if chart_view == "by_elder":
+            df_elder = pd.read_sql("""
+                SELECT e.full_name AS elder,
+                       COUNT(pi.id) AS scheduled,
+                       COALESCE(SUM(CASE WHEN pi.executed=1 THEN 1 ELSE 0 END), 0) AS done
+                FROM elders e
+                LEFT JOIN daily_plans dp ON dp.elder_id = e.id AND dp.plan_date >= ?
+                LEFT JOIN plan_items pi ON pi.plan_id = dp.id
+                WHERE e.active = 1
+                GROUP BY e.id, e.full_name
+                ORDER BY scheduled DESC
+            """, conn, params=(cutoff,))
 
-    st.markdown("---")
-    st.markdown("### Per-elder summary")
-    per_elder = []
-    for e in elders:
-        sched = conn.execute("""
-            SELECT COUNT(*) FROM plan_items pi
-            JOIN daily_plans dp ON dp.id = pi.plan_id
-            WHERE dp.plan_date >= ? AND dp.elder_id = ?
-        """, (cutoff, e["id"])).fetchone()[0]
-        done = conn.execute("""
-            SELECT COUNT(*) FROM plan_items pi
-            JOIN daily_plans dp ON dp.id = pi.plan_id
-            WHERE dp.plan_date >= ? AND dp.elder_id = ? AND pi.executed = 1
-        """, (cutoff, e["id"])).fetchone()[0]
-        per_elder.append({
-            "id": e["id"],
-            t("elder_name", LANG): e["full_name"],
-            t("room_number", LANG): e["room_number"] or "-",
-            t("items_scheduled", LANG): sched,
-            t("executed_total", LANG): done,
-            t("completion_rate", LANG): f"{(done/sched*100) if sched else 0:.0f}%",
-        })
-    if per_elder:
-        st.dataframe(pd.DataFrame(per_elder).drop(columns=["id"]),
-                     width="stretch", hide_index=True)
+            if df_elder.empty or df_elder["scheduled"].sum() == 0:
+                st.info("אין עדיין מספיק נתונים לגרף.")
+            else:
+                df_elder.columns = ["דייר/ת", "מתוזמן", "בוצע"]
+                st.markdown("#### פעילויות מתוכננות לעומת בוצעו")
+                st.bar_chart(df_elder.set_index("דייר/ת")[["מתוזמן", "בוצע"]], color=CHART_PAIR,
+                             height=320)
 
-    st.markdown("### " + t("report_summary", LANG))
-    target_id = st.selectbox(
-        t("select_elder", LANG),
-        options=[e["id"] for e in elders] if elders else [],
-        format_func=lambda i: next(e["full_name"] for e in elders if e["id"] == i),
-    ) if elders else None
+                df_elder["אחוז ביצוע"] = (
+                    df_elder["בוצע"] / df_elder["מתוזמן"].clip(lower=1) * 100
+                ).round(1)
+                st.markdown("#### אחוז ביצוע (%)")
+                st.bar_chart(df_elder.set_index("דייר/ת")["אחוז ביצוע"], color=CHART_ONE, height=280)
 
-    ecols = st.columns(3)
-    if target_id:
-        if ecols[0].button("📄 " + t("report_export_word", LANG)):
-            out = report_export.elder_summary_docx(conn, target_id, days_back, LANG)
-            with open(out, "rb") as f:
-                st.download_button("⬇️ Download", f.read(), file_name=Path(out).name)
-        if ecols[1].button("📕 " + t("report_export_pdf", LANG)):
-            out = report_export.elder_summary_pdf(conn, target_id, days_back, LANG)
-            with open(out, "rb") as f:
-                st.download_button("⬇️ Download", f.read(), file_name=Path(out).name)
-        if ecols[2].button("📊 " + t("report_export_excel", LANG)):
-            out = report_export.elder_summary_xlsx(conn, target_id, days_back, LANG)
-            with open(out, "rb") as f:
-                st.download_button("⬇️ Download", f.read(), file_name=Path(out).name)
+        elif chart_view == "by_date":
+            df_date = pd.read_sql("""
+                SELECT dp.plan_date AS plan_date,
+                       COUNT(pi.id) AS scheduled,
+                       COALESCE(SUM(CASE WHEN pi.executed=1 THEN 1 ELSE 0 END), 0) AS done
+                FROM daily_plans dp
+                LEFT JOIN plan_items pi ON pi.plan_id = dp.id
+                WHERE dp.plan_date >= ?
+                GROUP BY dp.plan_date
+                ORDER BY dp.plan_date
+            """, conn, params=(cutoff,))
+
+            if df_date.empty:
+                st.info("אין עדיין מספיק נתונים לגרף.")
+            else:
+                df_date.columns = ["תאריך", "מתוזמן", "בוצע"]
+                st.markdown("#### פעילויות לפי תאריך")
+                st.line_chart(df_date.set_index("תאריך")[["מתוזמן", "בוצע"]], color=CHART_PAIR,
+                              height=320)
+
+                df_date["אחוז ביצוע"] = (
+                    df_date["בוצע"] / df_date["מתוזמן"].clip(lower=1) * 100
+                ).round(1)
+                st.markdown("#### אחוז ביצוע יומי (%)")
+                st.area_chart(df_date.set_index("תאריך")["אחוז ביצוע"], color=CHART_ONE, height=240)
+
+        else:  # by_category
+            df_cat = pd.read_sql("""
+                SELECT
+                  CASE
+                    WHEN ka.code IS NOT NULL THEN ka.category
+                    WHEN ke.code IS NOT NULL THEN 'sport'
+                    WHEN ep.id IS NOT NULL  THEN 'external'
+                    WHEN pi.activity_code LIKE 'HOL_%' THEN 'holiday'
+                    ELSE 'general'
+                  END AS category,
+                  COUNT(pi.id) AS total,
+                  COALESCE(SUM(CASE WHEN pi.executed=1 THEN 1 ELSE 0 END), 0) AS done
+                FROM plan_items pi
+                JOIN daily_plans dp ON dp.id = pi.plan_id
+                LEFT JOIN kb_activities ka ON ka.code = pi.activity_code
+                LEFT JOIN kb_exercises  ke ON ke.code = pi.activity_code
+                LEFT JOIN external_programs ep ON ('EXT_' || ep.id) = pi.activity_code
+                WHERE dp.plan_date >= ?
+                GROUP BY category
+                ORDER BY total DESC
+            """, conn, params=(cutoff,))
+
+            if df_cat.empty:
+                st.info("אין עדיין מספיק נתונים לגרף.")
+            else:
+                cat_labels = {
+                    "sport": "🏃 ספורט", "physical": "💪 פיזית",
+                    "cognitive": "🧠 קוגניטיבית", "social": "👥 חברתית",
+                    "mental": "🌿 נפשית", "medical": "🏥 רפואית",
+                    "nursing": "🩺 סיעודית", "external": "🏛️ חיצונית",
+                    "holiday": "🎉 חג", "general": "📌 כללי",
+                }
+                df_cat["category"] = df_cat["category"].map(
+                    lambda c: cat_labels.get(c, c)
+                )
+                df_cat.columns = ["קטגוריה", "סהכ", "בוצעו"]
+
+                # pie chart via Altair
+                try:
+                    import altair as alt
+                    st.markdown("#### חלוקה לפי קטגוריה")
+                    pie = (
+                        alt.Chart(df_cat)
+                        .mark_arc(innerRadius=50, outerRadius=130)
+                        .encode(
+                            theta=alt.Theta("סהכ:Q"),
+                            color=alt.Color("קטגוריה:N",
+                                            legend=alt.Legend(title="קטגוריה")),
+                            tooltip=["קטגוריה", "סהכ", "בוצעו"],
+                        )
+                        .properties(height=380)
+                    )
+                    st.altair_chart(pie, width="stretch")
+                except Exception as e:
+                    st.caption("לא ניתן להציג את תרשים העוגה")
+
+                st.markdown("#### עמודות - סך הכל ובוצעו")
+                st.bar_chart(df_cat.set_index("קטגוריה")[["סהכ", "בוצעו"]], color=CHART_PAIR,
+                             height=320)
+
+                df_cat["אחוז ביצוע"] = (
+                    df_cat["בוצעו"] / df_cat["סהכ"].clip(lower=1) * 100
+                ).round(1)
+                st.markdown("#### אחוז ביצוע לפי קטגוריה (%)")
+                st.bar_chart(df_cat.set_index("קטגוריה")["אחוז ביצוע"], color=CHART_ONE, height=260)
+
+    with mtabs[4]:
+        st.markdown("#### " + t("report_summary", LANG))
+        target_id = st.selectbox(
+            t("select_elder", LANG),
+            options=[e["id"] for e in elders] if elders else [],
+            format_func=lambda i: next(e["full_name"] for e in elders if e["id"] == i),
+        ) if elders else None
+
+        ecols = st.columns(3)
+        if target_id:
+            if ecols[0].button("📄 " + t("report_export_word", LANG), disabled=not perms.can("export_reports"), help=perms.help_if_denied("export_reports")):
+                out = report_export.elder_summary_docx(conn, target_id, days_back, LANG)
+                with open(out, "rb") as f:
+                    st.download_button("⬇️ " + t("download", LANG), f.read(), file_name=Path(out).name)
+            if ecols[1].button("📕 " + t("report_export_pdf", LANG), disabled=not perms.can("export_reports"), help=perms.help_if_denied("export_reports")):
+                out = report_export.elder_summary_pdf(conn, target_id, days_back, LANG)
+                with open(out, "rb") as f:
+                    st.download_button("⬇️ " + t("download", LANG), f.read(), file_name=Path(out).name)
+            if ecols[2].button("📊 " + t("report_export_excel", LANG), disabled=not perms.can("export_reports"), help=perms.help_if_denied("export_reports")):
+                out = report_export.elder_summary_xlsx(conn, target_id, days_back, LANG)
+                with open(out, "rb") as f:
+                    st.download_button("⬇️ " + t("download", LANG), f.read(), file_name=Path(out).name)
 
     conn.close()
 
@@ -2482,9 +2595,10 @@ def view_manager(LANG: str):
 # =====================================================================
 def view_knowledge(LANG: str):
     conn = get_connection()
-    st.markdown(f"# 📚 {t('nav_knowledge', LANG)}")
+    _page_header("knowledge", t('nav_knowledge', LANG), t("ph_knowledge", LANG))
 
-    if st.button("🔄 " + t("refresh_kb", LANG)):
+    if st.button("🔄 " + t("refresh_kb", LANG), disabled=not perms.can("edit_kb"),
+                 help=perms.help_if_denied("edit_kb")):
         counts = refresh_knowledge_banks(conn)
         st.success(json.dumps(counts))
 
@@ -2500,7 +2614,8 @@ def view_knowledge(LANG: str):
     cols[4].metric(t("kb_exercises_count", LANG),
                    conn.execute("SELECT COUNT(*) FROM kb_exercises").fetchone()[0])
 
-    tabs = st.tabs(["Diseases", "Medications", "Conditions", "Activities",
+    tabs = st.tabs(["🦠 " + t("kb_tab_diseases", LANG), "💊 " + t("kb_tab_medications", LANG),
+                    "🩺 " + t("kb_tab_conditions", LANG), "🎯 " + t("kb_tab_activities", LANG),
                     "🏃 " + t("exercises_section", LANG)])
     for tab, table in zip(tabs, ["kb_diseases", "kb_medications", "kb_conditions",
                                   "kb_activities", "kb_exercises"]):
@@ -2544,7 +2659,8 @@ def view_knowledge(LANG: str):
                     unsafe_allow_html=True,
                 )
             with c2:
-                if st.button("🗑️", key=f"del_src_{s['id']}", help="מחק מאגר"):
+                if st.button("🗑️", key=f"del_src_{s['id']}", help="מחק מאגר",
+                             disabled=not perms.can("edit_kb")):
                     conn.execute("DELETE FROM kb_online_sources WHERE id = ?",
                                  (s["id"],))
                     conn.commit()
@@ -2561,7 +2677,8 @@ def view_knowledge(LANG: str):
                                format_func=lambda k: CAT_LABELS[k])
             desc = st.text_area("תיאור קצר",
                                 placeholder="על מה המאגר ולמה הוא שימושי")
-            if st.form_submit_button("➕ הוסף מאגר", type="primary"):
+            if st.form_submit_button("➕ הוסף מאגר", type="primary",
+                                     disabled=not perms.can("edit_kb")):
                 if nm.strip() and url.strip():
                     u = url.strip()
                     if not (u.startswith("http://") or u.startswith("https://")):
@@ -2589,7 +2706,7 @@ def view_rules(LANG: str):
     from models import rules_doc
     from models.optimizer import parse_institution_rules
 
-    st.markdown(f"# 📋 {t('nav_rules', LANG)}")
+    _page_header("rules", t('nav_rules', LANG), t("ph_rules", LANG))
     st.caption(
         "בנק הכללים נשמר בקובץ Word: `knowledge_banks/rules_bank.docx`. "
         "האופטימייזר קורא אותו מחדש בכל יצירת תוכנית. "
@@ -2617,12 +2734,15 @@ def view_rules(LANG: str):
     )
     bcols = st.columns([2, 2, 6])
     if bcols[0].button("💾 שמור כללים", type="primary",
-                       key="rules_save", width="stretch"):
+                       key="rules_save", width="stretch",
+                       disabled=not perms.can("edit_rules"),
+                       help=perms.help_if_denied("edit_rules")):
         rules_doc.set_rules_from_text(bulk_text)
         st.success("הכללים נשמרו לקובץ Word ✓")
         st.rerun()
     if bcols[1].button("🗑️ מחק הכל", key="rules_clear_all",
-                       width="stretch"):
+                       width="stretch", disabled=not perms.can("edit_rules"),
+                       help=perms.help_if_denied("edit_rules")):
         rules_doc.write_rules([])
         st.success("כל הכללים נמחקו")
         st.rerun()
@@ -2639,7 +2759,8 @@ def view_rules(LANG: str):
             label_visibility="collapsed",
         )
         if acols[1].form_submit_button("➕ הוסף", type="primary",
-                                       width="stretch"):
+                                       width="stretch",
+                                       disabled=not perms.can("edit_rules")):
             if new_rule.strip():
                 rules_doc.add_rule(new_rule.strip())
                 st.toast("✓ הכלל נוסף")
@@ -2677,7 +2798,8 @@ def view_rules(LANG: str):
                 )
             with rcols[1]:
                 if st.button("🗑️", key=f"rule_del_{idx}",
-                             help="מחק כלל זה", width="stretch"):
+                             help="מחק כלל זה", width="stretch",
+                             disabled=not perms.can("edit_rules")):
                     rules_doc.delete_rule(idx)
                     st.toast(f"נמחק: {rule[:40]}")
                     st.rerun()
@@ -2736,7 +2858,7 @@ _REASON_FROM_STORE = {v: k for k, v in _REASON_STORE.items()}
 
 def view_tracking(LANG: str):
     conn = get_connection()
-    st.markdown(f"# 📌 {t('nav_tracking', LANG)}")
+    _page_header("tracking", t('nav_tracking', LANG), t("ph_tracking", LANG))
     st.caption(t("tracking_help", LANG))
 
     elders = _list_elders(conn)
@@ -2830,19 +2952,26 @@ def view_tracking(LANG: str):
             try:
                 dobj = dt.date.fromisoformat(current_date)
                 dname = t(HEBREW_DAYS[day_index_hebrew(dobj)], LANG)
-                st.markdown(f"### 📅 {dname} · {hebrew_date(dobj)}")
+                st.markdown(f"<div class='day-divider'>{dname} · {hebrew_date(dobj)}</div>",
+                            unsafe_allow_html=True)
             except Exception:
-                st.markdown(f"### 📅 {current_date}")
+                st.markdown(f"<div class='day-divider'>{_esc(current_date)}</div>",
+                            unsafe_allow_html=True)
 
         c = styling.category_color(it["category"] or "general")
         with st.container(border=True):
             cols = st.columns([3, 1, 1])
             with cols[0]:
-                mark = ("✅" if it["executed"]
-                        else ("❌" if it["skipped_reason"] else "⬜"))
+                _st = ("done" if it["executed"]
+                       else ("skip" if it["skipped_reason"] else "pending"))
+                _st_label = {"done": t("tracking_done", LANG),
+                             "skip": t("tracking_not_done", LANG),
+                             "pending": "טרם סומן"}[_st]
                 st.markdown(
-                    f"<strong style='color:{c['text']};'>{mark} "
-                    f"🕐 {it['start_time']} - {it['name_he']}</strong>",
+                    f"<div class='plan-item' style='--cat:{c['border']}'>"
+                    f"<span class='pi-time'>{_esc(it['start_time'])}</span>"
+                    f"<span class='pi-title'>{_esc(labels.item_name(it['activity_code'], it['name_he']))}</span>"
+                    f"<span class='status-pill {_st}'>{_esc(_st_label)}</span></div>",
                     unsafe_allow_html=True,
                 )
                 if it["executed"]:
@@ -2950,7 +3079,7 @@ def view_goals(LANG: str):
     from models.optimizer import load_elder_context
 
     conn = get_connection()
-    st.markdown(f"# 🎯 {t('nav_goals', LANG)}")
+    _page_header("goals", t('nav_goals', LANG), t("ph_goals", LANG))
     st.caption(t("goals_help", LANG))
 
     elders = _list_elders(conn)
@@ -3024,12 +3153,13 @@ def view_goals(LANG: str):
                     conn.commit()
                     st.rerun()
                 # tags + source badge
+                _goal_tags = (labels.tags_html(g["target_tags"])
+                              or "<span class='why-chip soft'>ללא קישור לסוג פעילות</span>")
                 st.markdown(
                     f"<span style='background:{src_color}20;color:{src_color};"
                     f"padding:1px 8px;border-radius:999px;font-size:0.72rem;"
                     f"font-weight:600;'>{src_label}</span> "
-                    f"<span style='color:#4b5563;font-size:0.78rem;'>🏷️ "
-                    f"{g['target_tags'] or '-'}</span>",
+                    f"<span class='goal-tags'>{_goal_tags}</span>",
                     unsafe_allow_html=True,
                 )
 
@@ -3088,7 +3218,7 @@ def view_goals(LANG: str):
 # =====================================================================
 def view_daily(LANG: str):
     conn = get_connection()
-    st.markdown(f"# 📅 {t('nav_daily_plan', LANG)}")
+    _page_header("daily", t('nav_daily_plan', LANG), t("ph_daily", LANG))
     if not _list_elders(conn):
         st.info(t("no_elder_selected", LANG))
         conn.close()
@@ -3101,7 +3231,7 @@ def view_daily(LANG: str):
 
 def view_weekly(LANG: str):
     conn = get_connection()
-    st.markdown(f"# 🗓️ {t('nav_weekly_plan', LANG)}")
+    _page_header("weekly", t('nav_weekly_plan', LANG), t("ph_weekly", LANG))
     if not _list_elders(conn):
         st.info(t("no_elder_selected", LANG))
         conn.close()
@@ -3117,7 +3247,7 @@ def view_weekly(LANG: str):
 # =====================================================================
 def view_accessibility(LANG: str):
     today_str = dt.date.today().strftime("%d/%m/%Y")
-    st.markdown("# ♿ הצהרת נגישות")
+    _page_header("accessibility", "הצהרת נגישות", t("ph_accessibility", LANG))
     st.markdown(
         "אנו רואים חשיבות רבה במתן שירות שוויוני ונגיש לכלל המשתמשים, "
         "לרבות אנשים עם מוגבלות. מערכת זו נבנתה במטרה לעמוד בהוראות "
@@ -3157,6 +3287,123 @@ def view_accessibility(LANG: str):
 
 
 # =====================================================================
+# STAFF & PERMISSIONS (בעלי תפקידים והרשאות) — moved here from the sidebar
+# =====================================================================
+def view_staff(LANG: str):
+    conn = get_connection()
+    _page_header("staff", t("nav_staff", LANG), t("ph_staff", LANG))
+    staff = conn.execute(
+        "SELECT id, organization_id, role_key, role_label, name, phone, email, notes "
+        "FROM org_staff WHERE active = 1 ORDER BY sort_order, id"
+    ).fetchall()
+    org_id = staff[0]["organization_id"] if staff else (
+        (conn.execute("SELECT id FROM organizations LIMIT 1").fetchone() or [None])[0]
+    )
+    can_edit = perms.can("manage_staff")
+    if not can_edit:
+        st.info("צפייה בלבד. ניהול בעלי תפקידים זמין להנהלת המוסד.")
+
+    # ---- the role-holders, as cards ----
+    cols = st.columns(3)
+    for i, srow in enumerate(staff):
+        prof = perms.PROFILES[perms.profile_of(srow["role_key"])]
+        me = srow["id"] == st.session_state.get("current_user_id")
+        me_tag = ' <span class="me-tag">מחובר/ת</span>' if me else ''
+        with cols[i % 3]:
+            st.markdown(
+                f"<div class='staff-card{' me' if me else ''}'>"
+                f"<div class='staff-card-role'>{_esc(srow['role_label'])}</div>"
+                f"<div class='staff-card-name'>{_esc(srow['name'])}{me_tag}</div>"
+                + (f"<div class='staff-card-row'>📞 <span class='ltr-text'>{_esc(srow['phone'])}</span></div>"
+                   if srow["phone"] else "")
+                + (f"<div class='staff-card-row'>✉️ <span class='ltr-text'>{_esc(srow['email'])}</span></div>"
+                   if srow["email"] else "")
+                + f"<span class='perm-chip'>🔐 {_esc(prof['label'])}</span></div>",
+                unsafe_allow_html=True,
+            )
+
+    # ---- manage role-holders (add / edit / remove) — same fields as before,
+    #      plus the permission level ----
+    st.markdown("#### ⚙️ ניהול בעלי תפקידים")
+    opts = [s["id"] for s in staff] + ["new"]
+    _nxt = st.session_state.pop("_staff_pick_next", None)   # set by add / delete
+    if _nxt is not None:
+        st.session_state.staff_pick = _nxt if _nxt in opts else opts[0]
+    elif st.session_state.get("staff_pick") not in opts:
+        st.session_state.pop("staff_pick", None)
+    pick = st.selectbox(
+        "בעל/ת תפקיד לעריכה",
+        options=opts,
+        format_func=lambda i: "➕ בעל/ת תפקיד חדש/ה" if i == "new" else next(
+            (f"{s['name']} · {s['role_label']}" for s in staff if s["id"] == i), "-"),
+        key="staff_pick",
+    )
+    person = next((s for s in staff if s["id"] == pick), None)
+    role_keys = [k for k, _ in perms.ROLE_OPTIONS]
+    role_names = dict(perms.ROLE_OPTIONS)
+    cur_key = (person["role_key"] if person else "instructor")
+    with st.form(f"staff_form_{pick}"):
+        fc = st.columns(2)
+        f_role = fc[0].text_input("תפקיד", value=(person["role_label"] if person else ""))
+        f_name = fc[1].text_input("שם", value=((person["name"] if person else "") or ""))
+        f_phone = fc[0].text_input("טלפון", value=((person["phone"] if person else "") or ""))
+        f_email = fc[1].text_input("אימייל", value=((person["email"] if person else "") or ""))
+        f_key = st.selectbox(
+            "הרשאה",
+            options=role_keys,
+            index=role_keys.index(cur_key) if cur_key in role_keys else 2,
+            format_func=lambda k: f"{role_names[k]} · {perms.PROFILES[perms.profile_of(k)]['label']}",
+        )
+        bc = st.columns(3)
+        do_save = bc[0].form_submit_button("💾 שמור", type="primary",
+                                           disabled=not can_edit or person is None)
+        do_add = bc[1].form_submit_button("➕ חדש", disabled=not can_edit)
+        do_del = bc[2].form_submit_button("🗑️ מחק", disabled=not can_edit or person is None)
+    if do_save and person:
+        conn.execute(
+            "UPDATE org_staff SET role_label=?, name=?, phone=?, email=?, role_key=? WHERE id=?",
+            (f_role, f_name, f_phone, f_email, f_key, person["id"]))
+        conn.commit()
+        st.toast("נשמר", icon="✅")
+        conn.close()
+        st.rerun()
+    if do_add:
+        c2 = conn.cursor()
+        c2.execute(
+            "INSERT INTO org_staff (organization_id, role_key, role_label, name, "
+            "phone, email, notes, sort_order, active) VALUES (?,?,?,?,?,?,?,?,1)",
+            (org_id, f_key, f_role or "תפקיד", f_name, f_phone, f_email, "",
+             len(staff)))
+        conn.commit()
+        st.session_state._staff_pick_next = c2.lastrowid
+        conn.close()
+        st.rerun()
+    if do_del and person:
+        conn.execute("DELETE FROM org_staff WHERE id=?", (person["id"],))
+        conn.commit()
+        if st.session_state.get("current_user_id") == person["id"]:
+            st.session_state.pop("current_user_id", None)
+        st.session_state._staff_pick_next = "reset"
+        conn.close()
+        st.rerun()
+
+    # ---- what each permission level allows ----
+    st.markdown("#### 🔐 מה כל הרשאה מאפשרת")
+    order = ["director", "activity_manager", "clinical", "instructor"]
+    rows = []
+    for action, label in perms.ACTION_LABELS:
+        row = {"פעולה": label}
+        for pk in order:
+            row[perms.PROFILES[pk]["label"]] = "✓" if pk in perms.ACTIONS[action] else "—"
+        rows.append(row)
+    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+    st.caption("תפקידים וההרשאה שלהם: " + " · ".join(
+        f"{name} ← {perms.PROFILES[perms.profile_of(k)]['label']}"
+        for k, name in perms.ROLE_OPTIONS))
+    conn.close()
+
+
+# =====================================================================
 # DISPATCH
 # =====================================================================
 LANG = st.session_state.lang
@@ -3168,15 +3415,18 @@ if _last_view is not None and _last_view != st.session_state.view:
 st.session_state._last_view = st.session_state.view
 
 # --- top action toolbar: Back + Print (both hidden on the printout) ---
-_tb = st.columns([1.4, 1.4, 5.2])
+_tb = st.columns([6.2, 1, 1])
 _prev = st.session_state.get("prev_view")
-if _tb[0].button("↩ " + t("back", LANG), key="tb_back", width="stretch",
+if _prev and not perms.can_view(_prev):
+    _prev = None
+if _tb[1].button(t("back", LANG), key="tb_back", width="stretch",
+                 icon=":material/arrow_forward:",
                  disabled=not _prev, help=t("back_help", LANG)):
     st.session_state.view, st.session_state.prev_view = \
         st.session_state.prev_view, st.session_state._last_view
     st.rerun()
-if _tb[1].button("🖨️ " + t("print", LANG), key="tb_print", width="stretch",
-                 help=t("print_help", LANG)):
+if _tb[2].button(t("print", LANG), key="tb_print", width="stretch",
+                 icon=":material/print:", help=t("print_help", LANG)):
     import streamlit.components.v1 as _components
     _components.html("<script>window.parent.print();</script>", height=0)
 
@@ -3196,5 +3446,7 @@ elif st.session_state.view == "tracking":
     view_tracking(LANG)
 elif st.session_state.view == "accessibility":
     view_accessibility(LANG)
+elif st.session_state.view == "staff":
+    view_staff(LANG)
 else:
     view_knowledge(LANG)
