@@ -42,7 +42,19 @@ from reports import export as report_export
 # its reopen control, stranding the nav). On phones the mobile CSS below turns
 # it into a fixed right-side overlay so it never squeezes the content.
 st.set_page_config(page_title="MIA", layout="wide", initial_sidebar_state="expanded")
-init_database()
+
+
+@st.cache_resource(show_spinner=False)
+def _init_database_once() -> bool:
+    """Create tables and load the Excel knowledge banks ONCE per server process,
+    not on every click (that reload took ~1s per interaction). The knowledge
+    banks screen's "refresh from Excel" button still reloads them on demand,
+    and a restart / redeploy reloads them too."""
+    init_database()
+    return True
+
+
+_init_database_once()
 
 
 def _ensure_demo_seeded() -> None:
@@ -421,6 +433,16 @@ def _list_elders(conn) -> list[dict]:
         "FROM elders WHERE active = 1 ORDER BY full_name"
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def _label_map(rows, name_field: str, with_code: bool = False) -> dict:
+    """code -> display label, built once per widget (a linear search per option
+    made the 2,288-activity picker slow)."""
+    out = {}
+    for r in rows:
+        name = r[name_field] or r["code"]
+        out[r["code"]] = f"{name} ({r['code']})" if with_code else f"{name}"
+    return out
 
 
 def _split(csv: str | None) -> list[str]:
@@ -812,9 +834,7 @@ def _condition_selects(kb, profile, LANG, dims) -> dict:
             out[dim] = st.multiselect(
                 label,
                 options=[r["code"] for r in rows],
-                format_func=lambda c, rr=rows: next(
-                    (f"{r[name_field]}" for r in rr if r["code"] == c), c
-                ),
+                format_func=lambda c, m=_label_map(rows, name_field): m.get(c, c),
                 default=current,
             )
     return out
@@ -829,14 +849,14 @@ def _profile_section_medical(kb, profile, LANG) -> dict:
         sel_diseases = st.multiselect(
             t("diseases_codes", LANG),
             options=[r["code"] for r in diseases],
-            format_func=lambda c: next((f"{r[name_field]}" for r in diseases if r["code"] == c), c),
+            format_func=lambda c, m=_label_map(diseases, name_field): m.get(c, c),
             default=_split(profile["medical_codes"]) if profile else [],
         )
     with cc[1]:
         sel_meds = st.multiselect(
             t("medications_codes", LANG),
             options=[r["code"] for r in meds],
-            format_func=lambda c: next((f"{r[name_field]}" for r in meds if r["code"] == c), c),
+            format_func=lambda c, m=_label_map(meds, name_field): m.get(c, c),
             default=_split(profile["medication_codes"]) if profile else [],
         )
     st.markdown(f"#### 🧩 {t('conditions_codes', LANG)}")
@@ -1066,9 +1086,7 @@ def _profile_section_prefs(kb, elder_id, profile, LANG) -> dict:
     preferred = st.multiselect(
         t("preferred_activities", LANG),
         options=[r["code"] for r in activities],
-        format_func=lambda c, aa=activities: next(
-            (f"{r[name_field]}" for r in aa if r["code"] == c), c
-        ),
+        format_func=lambda c, m=_label_map(activities, name_field): m.get(c, c),
         default=_preferred_default,
         label_visibility="collapsed",
     )
@@ -1278,9 +1296,7 @@ def _render_culture_tab(conn, elder_id, profile, LANG):
     sel_cultural = st.multiselect(
         t("cultural_identities", LANG),
         options=[r["code"] for r in cultural_rows],
-        format_func=lambda c, rr=cultural_rows: next(
-            (f"{r[name_field]}" for r in rr if r["code"] == c), c
-        ),
+        format_func=lambda c, m=_label_map(cultural_rows, name_field): m.get(c, c),
         default=current_cultural,
         label_visibility="collapsed",
     )
@@ -1569,9 +1585,7 @@ def _render_daily_plan_tab(conn, elder_id, LANG):
             chosen_code = st.selectbox(
                 "פעילות",
                 options=[r["code"] for r in rows],
-                format_func=lambda c, rr=rows: next(
-                    (f"{r[name_field]} ({r['code']})" for r in rr if r["code"] == c), c
-                ),
+                format_func=lambda c, m=_label_map(rows, name_field, with_code=True): m.get(c, c),
                 key=f"manual_pick_{plan_date_iso}",
             )
             mcols = st.columns([2, 2, 2, 1])
@@ -1972,13 +1986,20 @@ def _render_measurements_tab(conn, elder_id, LANG):
         width="stretch", hide_index=True,
     )
 
-    # trend per test
-    for test_code in df["test_code"].unique():
+    # trend per test — one chart at a time (drawing every test's chart on each
+    # click was the slowest part of the profile screen)
+    trend_codes = [c for c in df["test_code"].unique()
+                   if (df["test_code"] == c).sum() >= 2]
+    if trend_codes:
+        test_code = st.selectbox(
+            "📈 גרף מגמה",
+            options=trend_codes,
+            format_func=lambda c: name_of.get(c, c),
+            key=f"trend_pick_{elder_id}",
+        )
         sub = df[df["test_code"] == test_code].sort_values("measurement_date")
-        if len(sub) >= 2:
-            st.markdown(f"#### {name_of.get(test_code, test_code)}")
-            st.caption("ℹ️ " + note_of.get(test_code, ""))
-            st.line_chart(sub.set_index("measurement_date")["score"], color=CHART_ONE, height=200)
+        st.caption("ℹ️ " + note_of.get(test_code, ""))
+        st.line_chart(sub.set_index("measurement_date")["score"], color=CHART_ONE, height=220)
 
 
 # ---------- IMPORT TAB ----------
