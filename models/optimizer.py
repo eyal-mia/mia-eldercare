@@ -835,6 +835,36 @@ def _family_key(act: Activity) -> str:
     return base or act.code
 
 
+# Coarse activity "kinds" for same-day de-duplication. Two activities of the
+# same kind (two dances, two walks, two yoga sessions...) should not both land
+# on one day even when their specific names differ ('ריקוד איטי' vs
+# 'ריקוד למוסיקה'). Keyword → kind; first match wins; otherwise fall back to the
+# fine family key so distinct activities still de-dup as before.
+_KIND_KEYWORDS = [
+    ("תנועה למוזיקה", "dance"), ("ריקוד", "dance"), ("מחול", "dance"),
+    ("הליכון", "walk"), ("הליכת", "walk"), ("הליכה", "walk"), ("צעידה", "walk"),
+    ("אופניים", "cycling"), ("אופני", "cycling"),
+    ("הידרו", "water"), ("שחייה", "water"), ("אקווה", "water"), ("במים", "water"), ("מים", "water"),
+    ("יוגה", "yoga"), ("פילאטיס", "pilates"),
+    ("טאי צ'י", "taichi_qigong"), ("צ'י גונג", "taichi_qigong"),
+    ("צ׳י גונג", "taichi_qigong"), ("צ'י-גונג", "taichi_qigong"), ("ג'י גונג", "taichi_qigong"),
+    ("נשימה", "breathing"), ("נשימות", "breathing"), ("סרעפת", "breathing"),
+    ("מתיחות", "stretching"), ("מתיחה", "stretching"),
+    ("גינון", "gardening"), ("גינה", "gardening"),
+    ("מקהלה", "singing"), ("שירה", "singing"),
+]
+
+
+def _activity_kind(act: Activity) -> str:
+    """Coarse kind used for within-day de-dup (prevents two dances / two walks /
+    two yoga in the same day). Falls back to :func:`_family_key`."""
+    n = act.name_he or ""
+    for kw, kind in _KIND_KEYWORDS:
+        if kw in n:
+            return "kind:" + kind
+    return _family_key(act)
+
+
 def _name_time_hint(name: str) -> str | None:
     """If the activity NAME states a time of day (e.g. 'הליכה - בוקר',
     'ערב שירה', 'Morning walk'), return the matching slot name so we don't
@@ -1100,7 +1130,7 @@ def solve_greedy(
         for sc, ex, rationale in ex_scored:
             if placed_sport >= MAX_MORNING_SPORT:
                 break
-            fam = _family_key(ex)
+            fam = _activity_kind(ex)
             if fam in used_families:
                 continue
             sched_dur = max(MIN_ACTIVITY_DURATION, ex.duration_min)
@@ -1143,7 +1173,7 @@ def solve_greedy(
         if act.code in used_codes:
             continue
         # don't schedule the same base activity twice in one day
-        fam = _family_key(act)
+        fam = _activity_kind(act)
         if fam in used_families:
             continue
 
