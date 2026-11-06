@@ -23,6 +23,7 @@ CATEGORY_COLORS = {
     "medical":    {"bg": "#F5DDD9", "border": "#AE3529", "text": "#5E1C16", "icon": "🏥"},
     "nursing":    {"bg": "#D8E9E1", "border": "#1D6A56", "text": "#0E3A2E", "icon": "🩺"},
     "preferences": {"bg": "#F4E7CD", "border": "#935A0B", "text": "#5A3707", "icon": "⭐"},
+    "family":     {"bg": "#FDE8E4", "border": "#C2410C", "text": "#7C2D12", "icon": "👨‍👩‍👧"},
     "external":   {"bg": "#E7ECD6", "border": "#55652A", "text": "#333D18", "icon": "🏛️"},
     "holiday":    {"bg": "#F4E7CD", "border": "#935A0B", "text": "#5A3707", "icon": "🎉"},
     "general":    {"bg": "#E4EAE5", "border": "#66766F", "text": "#2B3A33", "icon": "📌"},
@@ -596,6 +597,16 @@ h4 { font-size: 1.08rem !important; font-weight: 700 !important; margin-top: .4r
    only while the sidebar is collapsed — see note there. Collapse and width-resize
    stay fully functional; this just guarantees a clickable way back. */
 #mia-reopen-sidebar:hover { filter: brightness(1.08); }
+
+/* Sidebar width-resize handle: in RTL the sidebar sits on the right, but
+   Streamlit leaves the drag handle on the far OUTER edge — off-screen against
+   the window edge, so it can't be grabbed. Move it to the sidebar's INNER edge
+   (next to the content) where it can be dragged to widen/narrow the sidebar. */
+[data-testid="stSidebar"] [style*="col-resize"] {
+  right: auto !important;
+  left: -4px !important;
+  width: 10px !important;
+}
 </style>
 """
 

@@ -706,6 +706,7 @@ def view_caregiver(LANG: str):
                      WHEN ka.code IS NOT NULL THEN ka.category
                      WHEN ke.code IS NOT NULL THEN 'sport'
                      WHEN ep.id IS NOT NULL THEN 'external'
+                     WHEN pi.activity_code LIKE 'FAM_%' THEN 'family'
                      WHEN pi.activity_code LIKE 'HOL_%' THEN 'holiday'
                      ELSE 'general' END AS cat,
                    COUNT(*) AS total,
@@ -1555,16 +1556,27 @@ def _render_daily_plan_tab(conn, elder_id, LANG):
         with st.expander("➕ הוסף פעילות ידנית"):
             src = st.radio(
                 "מקור",
-                options=["activities", "exercises", "external"],
+                options=["activities", "exercises", "external", "custom"],
                 format_func=lambda s: {
                     "activities": "📚 מבנק פעילויות",
                     "exercises": "🏃 מבנק תרגילים",
                     "external": "🏛️ מתוכניות חיצוניות",
+                    "custom": "👨‍👩‍👧 מפגש / אירוע משפחתי",
                 }[s],
                 horizontal=True,
                 key=f"manual_src_{plan_date_iso}",
             )
-            if src == "activities":
+            custom_name = None
+            rows = []
+            if src == "custom":
+                custom_name = st.text_input(
+                    "שם המפגש / האירוע",
+                    placeholder="לדוגמה: ביקור משפחה, פגישה עם רופא, אירוע משפחתי, יום הולדת",
+                    key=f"manual_custom_{plan_date_iso}",
+                )
+                _cn = (custom_name or "").strip()
+                chosen_code = ("FAM_" + _cn) if _cn else None
+            elif src == "activities":
                 rows = conn.execute(
                     "SELECT code, name_he, name_en, duration_min "
                     "FROM kb_activities ORDER BY name_he LIMIT 500"
@@ -1582,12 +1594,13 @@ def _render_daily_plan_tab(conn, elder_id, LANG):
                 ).fetchall()
 
             name_field = "name_he" if LANG == "he" else "name_en"
-            chosen_code = st.selectbox(
-                "פעילות",
-                options=[r["code"] for r in rows],
-                format_func=lambda c, m=_label_map(rows, name_field, with_code=True): m.get(c, c),
-                key=f"manual_pick_{plan_date_iso}",
-            )
+            if src != "custom":
+                chosen_code = st.selectbox(
+                    "פעילות",
+                    options=[r["code"] for r in rows],
+                    format_func=lambda c, m=_label_map(rows, name_field, with_code=True): m.get(c, c),
+                    key=f"manual_pick_{plan_date_iso}",
+                )
             mcols = st.columns([2, 2, 2, 1])
             slot_choice = mcols[0].selectbox(
                 "חלון זמן",
@@ -1602,7 +1615,7 @@ def _render_daily_plan_tab(conn, elder_id, LANG):
             )
             chosen_row = next((r for r in rows if r["code"] == chosen_code), None)
             # sqlite3.Row doesn't support .get() — read by key with a try/except
-            default_dur = 30
+            default_dur = 60 if src == "custom" else 30
             if chosen_row is not None:
                 try:
                     default_dur = int(chosen_row["duration_min"] or 30)
@@ -1615,24 +1628,33 @@ def _render_daily_plan_tab(conn, elder_id, LANG):
             )
             if mcols[3].button("➕ הוסף", type="primary",
                                key=f"manual_add_{plan_date_iso}"):
-                try:
-                    chosen_name = chosen_row[name_field] if chosen_row else chosen_code
-                except (KeyError, IndexError):
-                    chosen_name = chosen_code
-                chosen_name = chosen_name or ""
-                ok = _add_item_to_plan(
-                    conn, elder_id, plan_date_iso,
-                    activity_code=chosen_code,
-                    time_slot=slot_choice,
-                    start_time=time_input,
-                    duration_min=int(manual_dur),
-                    rationale=f"➕ הוסף ידנית: {chosen_name}",
-                )
-                if ok:
-                    st.success("נוסף לתוכנית")
+                if src == "custom" and not (custom_name or "").strip():
+                    st.warning("יש להזין שם למפגש / האירוע")
                 else:
-                    st.info("כבר קיים בתוכנית")
-                st.rerun()
+                    if src == "custom":
+                        chosen_name = custom_name.strip()
+                        chosen_code = "FAM_" + chosen_name
+                        rationale = f"👨‍👩‍👧 אירוע משפחתי: {chosen_name}"
+                    else:
+                        try:
+                            chosen_name = chosen_row[name_field] if chosen_row else chosen_code
+                        except (KeyError, IndexError):
+                            chosen_name = chosen_code
+                        chosen_name = chosen_name or ""
+                        rationale = f"➕ הוסף ידנית: {chosen_name}"
+                    ok = _add_item_to_plan(
+                        conn, elder_id, plan_date_iso,
+                        activity_code=chosen_code,
+                        time_slot=slot_choice,
+                        start_time=time_input,
+                        duration_min=int(manual_dur),
+                        rationale=rationale,
+                    )
+                    if ok:
+                        st.success("נוסף לתוכנית")
+                    else:
+                        st.info("כבר קיים בתוכנית")
+                    st.rerun()
 
     if not plan:
         st.info(t("no_plan_today", LANG))
@@ -1663,6 +1685,7 @@ def _render_daily_plan_tab(conn, elder_id, LANG):
                  WHEN ka.code IS NOT NULL THEN ka.category
                  WHEN ke.code IS NOT NULL THEN 'sport'
                  WHEN ep.id IS NOT NULL  THEN 'external'
+                 WHEN pi.activity_code LIKE 'FAM_%' THEN 'family'
                  WHEN pi.activity_code LIKE 'HOL_%' THEN 'holiday'
                  ELSE 'general'
                END AS category
@@ -1835,6 +1858,7 @@ def _render_day_card(conn, elder_id, day_date, day_idx, LANG, name_field, today_
                      WHEN ka.code IS NOT NULL THEN ka.category
                      WHEN ke.code IS NOT NULL THEN 'sport'
                      WHEN ep.id IS NOT NULL  THEN 'external'
+                     WHEN pi.activity_code LIKE 'FAM_%' THEN 'family'
                      WHEN pi.activity_code LIKE 'HOL_%' THEN 'holiday'
                      ELSE 'general'
                    END AS category
@@ -2526,6 +2550,7 @@ def view_manager(LANG: str):
                     WHEN ka.code IS NOT NULL THEN ka.category
                     WHEN ke.code IS NOT NULL THEN 'sport'
                     WHEN ep.id IS NOT NULL  THEN 'external'
+                    WHEN pi.activity_code LIKE 'FAM_%' THEN 'family'
                     WHEN pi.activity_code LIKE 'HOL_%' THEN 'holiday'
                     ELSE 'general'
                   END AS category,
@@ -2914,6 +2939,7 @@ def view_tracking(LANG: str):
                  WHEN ka.code IS NOT NULL THEN ka.category
                  WHEN ke.code IS NOT NULL THEN 'sport'
                  WHEN ep.id IS NOT NULL THEN 'external'
+                 WHEN pi.activity_code LIKE 'FAM_%' THEN 'family'
                  WHEN pi.activity_code LIKE 'HOL_%' THEN 'holiday'
                  ELSE 'general' END AS category
         FROM plan_items pi
