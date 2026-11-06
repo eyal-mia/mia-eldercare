@@ -867,6 +867,7 @@ def solve_greedy(
     enrolled_programs: list[dict] | None = None,
     elder_demographic_codes: set[str] | None = None,
     institution_rules: dict | None = None,
+    avoid_penalty: dict[str, float] | None = None,
 ) -> tuple[list[dict], float]:
     """Greedy with several guarantees:
       STEP 0: Holiday (if today is one) → inserted into its prescribed slot.
@@ -874,10 +875,18 @@ def solve_greedy(
                 weekday → inserted into their fixed time slot.
       STEP 1: Morning sport (unless slots flag no_sport, e.g. Saturday).
       STEP 2: Greedy fill of remaining time with regular activities.
+
+    ``avoid_penalty`` maps an activity/exercise code to a score deduction used
+    to create variety ACROSS a week: the weekly planner feeds in the codes it
+    already placed on nearby days so each day differs instead of repeating the
+    same picks. It only reshuffles preferences — it never blocks an activity —
+    so a strongly-indicated activity can still recur, and days never come back
+    empty.
     """
     exercises = exercises or []
     enrolled_programs = enrolled_programs or []
     elder_demographic_codes = elder_demographic_codes or set()
+    avoid_penalty = avoid_penalty or {}
     rules = institution_rules or {
         "no_activity_after_minutes": None,
         "no_activity_before_minutes": None,
@@ -1080,6 +1089,7 @@ def solve_greedy(
             sc, rationale = _score_activity(ex, ctx)
             if ex.code in history_executed:
                 sc -= 1.5
+            sc -= avoid_penalty.get(ex.code, 0.0)  # weekly variety
             ex_scored.append((sc, ex, rationale))
         ex_scored.sort(key=lambda kv: -kv[0])
 
@@ -1121,6 +1131,7 @@ def solve_greedy(
         score, rationale = _score_activity(act, ctx)
         if act.code in history_executed:
             score -= 1.5  # mild diversity penalty
+        score -= avoid_penalty.get(act.code, 0.0)  # weekly variety
         eligible_scored.append((score, act, rationale))
 
     eligible_scored.sort(key=lambda kv: (-kv[0], kv[1].duration_min))
@@ -1212,9 +1223,11 @@ def solve_pulp(
     slots: list[dict],
     history_executed: set[str],
     history_skipped: set[str],
+    avoid_penalty: dict[str, float] | None = None,
 ) -> tuple[list[dict], float]:
     import pulp  # noqa: WPS433
 
+    avoid_penalty = avoid_penalty or {}
     eligible = []
     activity_scores: dict[str, float] = {}
     activity_rationale: dict[str, list[str]] = {}
@@ -1225,6 +1238,7 @@ def solve_pulp(
         s, r = _score_activity(act, ctx)
         if act.code in history_executed:
             s -= 1.5
+        s -= avoid_penalty.get(act.code, 0.0)  # weekly variety
         activity_scores[act.code] = s
         activity_rationale[act.code] = r
         eligible.append(act)
@@ -1291,6 +1305,7 @@ def solve_daily_plan(
     enrolled_programs: list[dict] | None = None,
     elder_demographic_codes: set[str] | None = None,
     institution_rules: dict | None = None,
+    avoid_penalty: dict[str, float] | None = None,
 ) -> tuple[list[dict], float]:
     if slots is None:
         slots = get_slots_for_date(plan_date)
@@ -1300,7 +1315,8 @@ def solve_daily_plan(
     if prefer_pulp:
         try:
             return solve_pulp(ctx, activities, slots,
-                              history_executed_codes, history_skipped_codes)
+                              history_executed_codes, history_skipped_codes,
+                              avoid_penalty=avoid_penalty)
         except Exception:
             pass  # fall through to greedy
     return solve_greedy(
@@ -1311,6 +1327,7 @@ def solve_daily_plan(
         enrolled_programs=enrolled_programs,
         elder_demographic_codes=elder_demographic_codes,
         institution_rules=institution_rules,
+        avoid_penalty=avoid_penalty,
     )
 
 
@@ -1358,7 +1375,7 @@ def fetch_history_codes(conn, elder_id, days_back=3):
     return executed, skipped
 
 
-def generate_plan_for_elder(elder_id, plan_date=None):
+def generate_plan_for_elder(elder_id, plan_date=None, avoid_penalty=None):
     plan_date = plan_date or dt.date.today().isoformat()
     conn = get_connection()
     try:
@@ -1383,6 +1400,7 @@ def generate_plan_for_elder(elder_id, plan_date=None):
             enrolled_programs=enrolled,
             elder_demographic_codes=demo_codes,
             institution_rules=rules,
+            avoid_penalty=avoid_penalty,
         )
         plan_id = save_plan(conn, elder_id, plan_date, items, score)
         return {
@@ -1407,21 +1425,62 @@ def week_start_sunday(d: dt.date) -> dt.date:
     return d - dt.timedelta(days=days_since_sunday)
 
 
+# Weekly variety — two mechanisms keep the week from repeating the same picks:
+#   1) A graduated recency penalty: an activity placed N days ago is discouraged
+#      (score deduction below) on the current day. The closest day dominates, and
+#      the 3-day memory lets a good activity return later while keeping
+#      consecutive days clearly different.
+#   2) A soft weekly cap: after MAX_WEEKLY_REPEATS placements an activity takes a
+#      strong extra deduction so other good activities get a turn — but the
+#      deduction is FINITE, so if a day has nothing else to offer (a resident with
+#      a small eligible pool) the activity can still fill the slot rather than
+#      leave the day half-empty. Variety never starves a plan.
+# Both only reshuffle scored activities/exercises; meals and fixed external
+# programs are placed directly (not scored) so they still recur every day.
+WEEKLY_VARIETY_PENALTY = {1: 50.0, 2: 14.0, 3: 8.0, 4: 6.0, 5: 4.0, 6: 3.0}
+MAX_WEEKLY_REPEATS = 3
+_WEEKLY_OVERUSE_PENALTY = 18.0
+
+
 def generate_weekly_plan_for_elder(
     elder_id: int,
     start_date: dt.date | str | None = None,
 ) -> dict:
-    """Generate 7 daily plans starting Sunday. Returns summary."""
+    """Generate 7 daily plans starting Sunday, varied day-to-day. Returns summary."""
     if start_date is None:
         start_date = week_start_sunday(dt.date.today())
     elif isinstance(start_date, str):
         start_date = dt.date.fromisoformat(start_date)
         start_date = week_start_sunday(start_date)
 
+    from collections import Counter
     days = []
+    day_codes: list[set[str]] = []   # scored activity/exercise codes placed per day
+    week_counts: Counter = Counter()  # how many times each code appeared so far
     for i in range(7):
         d = start_date + dt.timedelta(days=i)
-        days.append(generate_plan_for_elder(elder_id, d.isoformat()))
+        # graduated variety penalty built from the previous few days
+        avoid: dict[str, float] = {}
+        for j in range(i):
+            pen = WEEKLY_VARIETY_PENALTY.get(i - j)
+            if not pen:
+                continue
+            for code in day_codes[j]:
+                if pen > avoid.get(code, 0.0):
+                    avoid[code] = pen
+        # soft weekly cap: a strong (but finite) nudge once over the quota
+        for code, n in week_counts.items():
+            if n >= MAX_WEEKLY_REPEATS:
+                avoid[code] = max(avoid.get(code, 0.0), _WEEKLY_OVERUSE_PENALTY)
+        res = generate_plan_for_elder(elder_id, d.isoformat(),
+                                      avoid_penalty=avoid or None)
+        days.append(res)
+        codes = {
+            it["activity_code"] for it in res["items"]
+            if not str(it["activity_code"]).startswith(("MEAL_", "EXT_"))
+        }
+        day_codes.append(codes)
+        week_counts.update(codes)
 
     total_items = sum(len(d["items"]) for d in days)
     return {
