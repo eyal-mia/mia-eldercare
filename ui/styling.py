@@ -591,6 +591,21 @@ h4 { font-size: 1.08rem !important; font-weight: 700 !important; margin-top: .4r
   [data-testid="stDataFrame"], [data-testid="stTable"] { overflow-x: auto !important; }
   .back-to-top-link { width: 42px; height: 42px; font-size: 1.15rem; bottom: 16px; }
 }
+
+/* ============ SIDEBAR LOCK ============ */
+/* The sidebar must never silently disappear. On desktop it is locked open: the
+   collapse (×) control is hidden so it can't be collapsed by accident, and a JS
+   guard (see inject) re-expands it if anything ever collapses it. If a collapsed
+   state does occur, Streamlit's RTL layout otherwise renders the reopen control
+   at 0x0 (unclickable) — force it to a visible, clickable size. */
+@media (min-width: 769px) {
+  [data-testid="stSidebarCollapseButton"] { display: none !important; }
+}
+[data-testid="stExpandSidebarButton"] {
+  min-width: 2.4rem !important; min-height: 2.4rem !important;
+  width: auto !important; height: auto !important;
+  visibility: visible !important; opacity: 1 !important;
+}
 </style>
 """
 
@@ -660,6 +675,22 @@ def inject(lang: str = "he") -> None:
     components.html(
         "<script>try{window.parent.document.documentElement.lang='" + lang + "';}"
         "catch(e){}</script>",
+        height=0,
+    )
+
+    # Sidebar lock: the sidebar must never silently disappear. If it ever
+    # collapses (a known RTL / Streamlit-Cloud artifact leaves the reopen control
+    # at 0x0, unclickable), re-expand it on desktop. The observer is installed
+    # once; on desktop the collapse control is also hidden via CSS.
+    components.html(
+        "<script>(function(){try{var w=window.parent,d=w.document;"
+        "function ex(){var s=d.querySelector('[data-testid=stSidebar]');"
+        "if(s&&s.getAttribute('aria-expanded')==='false'&&w.innerWidth>=769){"
+        "var b=d.querySelector('[data-testid=stExpandSidebarButton]');if(b){b.click();}}}"
+        "ex();if(!w.__miaSidebarLock){w.__miaSidebarLock=1;"
+        "new MutationObserver(ex).observe(d.body,"
+        "{attributes:true,subtree:true,attributeFilter:['aria-expanded']});}"
+        "}catch(e){}})();</script>",
         height=0,
     )
 
