@@ -256,6 +256,36 @@ DEFAULT_ONLINE_SOURCES = [
      "general", "נתונים ממשלתיים פתוחים, כולל מאגרי בריאות ורווחה."),
 ]
 
+# Evidence knowledge banks behind the physical / cognitive / social activity
+# library (added 2026). Inserted idempotently so they also appear on databases
+# seeded before they existed.
+ACTIVITY_KNOWLEDGE_SOURCES = [
+    ("WHO – פעילות גופנית למבוגרים 65+",
+     "https://www.who.int/news-room/fact-sheets/detail/physical-activity",
+     "activities",
+     "הנחיות ארגון הבריאות העולמי לפעילות גופנית לקשישים — אירובי, כוח ואיזון, מינון ותועלות."),
+    ("WHO – הפחתת סיכון לירידה קוגניטיבית ודמנציה",
+     "https://www.who.int/publications/i/item/9789241550543",
+     "research",
+     "הנחיות WHO 2019 — פעילות גופנית, קוגניטיבית וחברתית למניעת ירידה קוגניטיבית."),
+    ("Lancet Commission on Dementia (2024)",
+     "https://www.thelancet.com/commissions/dementia",
+     "research",
+     "דו\"ח 2024 — 14 גורמי סיכון הניתנים לשינוי; בסיס לפעילות רב-ממדית מותאמת אישית."),
+    ("ARIIA – בידוד והשתתפות חברתית בזקנה",
+     "https://www.ariia.org.au/",
+     "activities",
+     "סקירת ראיות על פעילות חברתית, מקהלות ותוכניות בין-דוריות להפחתת בדידות."),
+    ("Cochrane Library – התערבויות לקשישים ודמנציה",
+     "https://www.cochranelibrary.com/",
+     "research",
+     "סקירות שיטתיות: טאי צ'י לאיזון ומניעת נפילות, רמיניסנציה, מוזיקה ואמנות בטיפול."),
+    ("Alzheimer's Association – 10 דרכים לבריאות המוח",
+     "https://www.alz.org/help-support/brain_health/10_ways_to_love_your_brain",
+     "activities",
+     "המלצות לפעילות גופנית, קוגניטיבית וחברתית לשמירה על בריאות המוח."),
+]
+
 # kb_* tables are mirrored from Excel on every launch — drop and recreate so
 # schema changes (e.g., added columns) always apply cleanly.
 KB_DDL = [
@@ -296,6 +326,17 @@ def init_database() -> None:
             "VALUES (?, ?, ?, ?)",
             DEFAULT_ONLINE_SOURCES,
         )
+
+    # ensure the activity knowledge-bank sources (physical / cognitive / social)
+    # are listed, even on databases that were seeded before they were added
+    for _src in ACTIVITY_KNOWLEDGE_SOURCES:
+        if cur.execute("SELECT 1 FROM kb_online_sources WHERE url = ?",
+                       (_src[1],)).fetchone() is None:
+            cur.execute(
+                "INSERT INTO kb_online_sources (name, url, category, description) "
+                "VALUES (?, ?, ?, ?)",
+                _src,
+            )
 
     # migration: rename old avoid_activity_codes column to preferred_activity_codes
     cur.execute("PRAGMA table_info(elder_profile)")
