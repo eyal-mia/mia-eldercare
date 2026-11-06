@@ -598,15 +598,16 @@ h4 { font-size: 1.08rem !important; font-weight: 700 !important; margin-top: .4r
    stay fully functional; this just guarantees a clickable way back. */
 #mia-reopen-sidebar:hover { filter: brightness(1.08); }
 
-/* Sidebar width-resize handle: in RTL the sidebar sits on the right, but
-   Streamlit leaves the drag handle on the far OUTER edge — off-screen against
-   the window edge, so it can't be grabbed. Move it to the sidebar's INNER edge
-   (next to the content) where it can be dragged to widen/narrow the sidebar. */
-[data-testid="stSidebar"] [style*="col-resize"] {
-  right: auto !important;
-  left: -4px !important;
-  width: 10px !important;
+/* Sidebar width-resize. Streamlit's native handle sits on the sidebar's far
+   OUTER edge (off-screen in RTL) and, when moved, drags in the WRONG direction
+   for a right-hand sidebar. Disable it and use our own handle on the INNER edge
+   (created in inject) with correct direction and persistence. */
+[data-testid="stSidebar"] [style*="col-resize"] { pointer-events: none !important; }
+#mia-resize-handle {
+  position: absolute; top: 0; left: -3px; width: 12px; height: 100%;
+  cursor: col-resize; z-index: 60; background: transparent;
 }
+#mia-resize-handle:hover { background: rgba(29, 106, 86, 0.18); }
 </style>
 """
 
@@ -699,6 +700,34 @@ def inject(lang: str = "he") -> None:
         "b.style.display=(s&&s.getAttribute('aria-expanded')==='false')?'flex':'none';}"
         "sync();new MutationObserver(sync).observe(d.body,"
         "{attributes:true,subtree:true,attributeFilter:['aria-expanded']});"
+        "}catch(e){}})();</script>",
+        height=0,
+    )
+
+    # Sidebar width-resize with the CORRECT direction for RTL. Streamlit's native
+    # handle resizes the wrong way for a right-hand sidebar (and sits off-screen),
+    # so it is disabled via CSS and replaced with our own inner-edge handle:
+    # dragging toward the content widens the sidebar, away narrows it. The chosen
+    # width is saved in localStorage and re-applied across reruns.
+    components.html(
+        "<script>(function(){try{"
+        "var w=window.parent,d=w.document;if(w.__miaResize){return;}w.__miaResize=1;"
+        "var KEY='mia_sidebar_w',drag=false,sx=0,sw=0;"
+        "function sb(){return d.querySelector('[data-testid=stSidebar]');}"
+        "function setW(p){var s=sb();if(s){s.style.setProperty('width',p+'px','important');}}"
+        "function saved(){var v=parseInt(localStorage.getItem(KEY));return (v>=180&&v<=600)?v:null;}"
+        "var h=d.createElement('div');h.id='mia-resize-handle';h.setAttribute('aria-hidden','true');"
+        "function mount(){var s=sb();if(s&&h.parentElement!==s){s.appendChild(h);}}"
+        "h.addEventListener('mousedown',function(e){var s=sb();if(!s){return;}drag=true;sx=e.clientX;"
+        "sw=parseInt(getComputedStyle(s).width)||300;e.preventDefault();d.body.style.userSelect='none';});"
+        "d.addEventListener('mousemove',function(e){if(!drag){return;}var nw=sw+(sx-e.clientX);"
+        "nw=Math.max(180,Math.min(600,nw));setW(nw);});"
+        "d.addEventListener('mouseup',function(){if(!drag){return;}drag=false;d.body.style.userSelect='';"
+        "var s=sb();if(s){localStorage.setItem(KEY,parseInt(getComputedStyle(s).width));}});"
+        "function apply(){var v=saved();if(v){var s=sb();"
+        "if(s&&s.getAttribute('aria-expanded')!=='false'&&parseInt(getComputedStyle(s).width)!==v){setW(v);}}}"
+        "mount();apply();"
+        "new MutationObserver(function(){mount();if(!drag){apply();}}).observe(d.body,{childList:true,subtree:true});"
         "}catch(e){}})();</script>",
         height=0,
     )
