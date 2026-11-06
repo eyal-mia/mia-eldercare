@@ -592,20 +592,10 @@ h4 { font-size: 1.08rem !important; font-weight: 700 !important; margin-top: .4r
   .back-to-top-link { width: 42px; height: 42px; font-size: 1.15rem; bottom: 16px; }
 }
 
-/* ============ SIDEBAR LOCK ============ */
-/* The sidebar must never silently disappear. On desktop it is locked open: the
-   collapse (×) control is hidden so it can't be collapsed by accident, and a JS
-   guard (see inject) re-expands it if anything ever collapses it. If a collapsed
-   state does occur, Streamlit's RTL layout otherwise renders the reopen control
-   at 0x0 (unclickable) — force it to a visible, clickable size. */
-@media (min-width: 769px) {
-  [data-testid="stSidebarCollapseButton"] { display: none !important; }
-}
-[data-testid="stExpandSidebarButton"] {
-  min-width: 2.4rem !important; min-height: 2.4rem !important;
-  width: auto !important; height: auto !important;
-  visibility: visible !important; opacity: 1 !important;
-}
+/* Custom reopen button (#mia-reopen-sidebar) is created by inject() and shown
+   only while the sidebar is collapsed — see note there. Collapse and width-resize
+   stay fully functional; this just guarantees a clickable way back. */
+#mia-reopen-sidebar:hover { filter: brightness(1.08); }
 </style>
 """
 
@@ -678,18 +668,26 @@ def inject(lang: str = "he") -> None:
         height=0,
     )
 
-    # Sidebar lock: the sidebar must never silently disappear. If it ever
-    # collapses (a known RTL / Streamlit-Cloud artifact leaves the reopen control
-    # at 0x0, unclickable), re-expand it on desktop. The observer is installed
-    # once; on desktop the collapse control is also hidden via CSS.
+    # Sidebar reopen safety: the sidebar collapses and resizes normally, but when
+    # collapsed Streamlit's RTL layout rendered the built-in reopen control at
+    # 0x0 (unclickable) — so it got stuck hidden. Add our own floating button
+    # that appears ONLY while the sidebar is collapsed and clicks the built-in
+    # reopen control. Created once in the parent document.
     components.html(
-        "<script>(function(){try{var w=window.parent,d=w.document;"
-        "function ex(){var s=d.querySelector('[data-testid=stSidebar]');"
-        "if(s&&s.getAttribute('aria-expanded')==='false'&&w.innerWidth>=769){"
-        "var b=d.querySelector('[data-testid=stExpandSidebarButton]');if(b){b.click();}}}"
-        "ex();if(!w.__miaSidebarLock){w.__miaSidebarLock=1;"
-        "new MutationObserver(ex).observe(d.body,"
-        "{attributes:true,subtree:true,attributeFilter:['aria-expanded']});}"
+        "<script>(function(){try{"
+        "var w=window.parent,d=w.document;"
+        "if(w.__miaReopenBtn){return;}w.__miaReopenBtn=1;"
+        "var b=d.createElement('button');b.id='mia-reopen-sidebar';b.type='button';"
+        "b.setAttribute('aria-label','פתח תפריט צד');b.innerHTML='&#9776;';"
+        "b.style.cssText='position:fixed;top:8px;right:8px;z-index:1000001;width:44px;height:44px;"
+        "border:none;border-radius:10px;background:#1D6A56;color:#fff;font-size:22px;cursor:pointer;"
+        "box-shadow:0 4px 14px rgba(20,33,28,.3);display:none;align-items:center;justify-content:center;';"
+        "b.addEventListener('click',function(){var ex=d.querySelector('[data-testid=stExpandSidebarButton]');if(ex){ex.click();}});"
+        "d.body.appendChild(b);"
+        "function sync(){var s=d.querySelector('[data-testid=stSidebar]');"
+        "b.style.display=(s&&s.getAttribute('aria-expanded')==='false')?'flex':'none';}"
+        "sync();new MutationObserver(sync).observe(d.body,"
+        "{attributes:true,subtree:true,attributeFilter:['aria-expanded']});"
         "}catch(e){}})();</script>",
         height=0,
     )
