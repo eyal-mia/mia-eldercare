@@ -445,6 +445,23 @@ def _label_map(rows, name_field: str, with_code: bool = False) -> dict:
     return out
 
 
+def _bilingual_label_map(rows, name_field: str) -> dict:
+    """code -> 'Hebrew · Latin' label so the foreign/Latin drug and disease
+    names are visible and searchable in the picker even in Hebrew mode."""
+    out = {}
+    for r in rows:
+        primary = r[name_field] or r["code"]
+        try:
+            other = r["name_en"] if name_field == "name_he" else r["name_he"]
+        except (KeyError, IndexError):
+            other = None
+        if other and other.strip() and other.strip() != str(primary).strip():
+            out[r["code"]] = f"{primary} · {other}"
+        else:
+            out[r["code"]] = f"{primary}"
+    return out
+
+
 def _split(csv: str | None) -> list[str]:
     if not csv:
         return []
@@ -850,14 +867,14 @@ def _profile_section_medical(kb, profile, LANG) -> dict:
         sel_diseases = st.multiselect(
             t("diseases_codes", LANG),
             options=[r["code"] for r in diseases],
-            format_func=lambda c, m=_label_map(diseases, name_field): m.get(c, c),
+            format_func=lambda c, m=_bilingual_label_map(diseases, name_field): m.get(c, c),
             default=_split(profile["medical_codes"]) if profile else [],
         )
     with cc[1]:
         sel_meds = st.multiselect(
             t("medications_codes", LANG),
             options=[r["code"] for r in meds],
-            format_func=lambda c, m=_label_map(meds, name_field): m.get(c, c),
+            format_func=lambda c, m=_bilingual_label_map(meds, name_field): m.get(c, c),
             default=_split(profile["medication_codes"]) if profile else [],
         )
     st.markdown(f"#### 🧩 {t('conditions_codes', LANG)}")
