@@ -24,7 +24,10 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
 from data.schema import init_database, get_connection
-from models.optimizer import generate_plan_for_elder
+from models.optimizer import (
+    generate_plan_for_elder,
+    generate_weekly_plan_for_elder,
+)
 
 
 # Each demo elder: (name, birth_year, gender, room, lang,
@@ -1653,27 +1656,27 @@ def seed(verbose: bool = True) -> None:
             )
         conn.commit()
 
-        # generate plans for the current week (Sun -> Sat) so weekly view is full
+        # generate plans for the current week (Sun -> Sat) so weekly view is full.
+        # Use the WEEKLY generator (not a per-day loop) so the 7 days are varied
+        # day-to-day instead of repeating the same optimal picks every day.
         today = dt.date.today()
         # current week starts on the Sunday on/before today (he locale)
         days_since_sunday = (today.weekday() + 1) % 7
         week_start = today - dt.timedelta(days=days_since_sunday)
-        days_to_seed = [week_start + dt.timedelta(days=i) for i in range(7)]
 
-        success_days = 0
-        for plan_date in days_to_seed:
-            try:
-                res = generate_plan_for_elder(elder_id, plan_date.isoformat())
-                success_days += 1
-            except Exception as e:
-                import traceback
-                print(f"    plan FAILED for {spec['name']} on {plan_date}: "
-                      f"{type(e).__name__}: {e}")
-                traceback.print_exc()
+        try:
+            wk = generate_weekly_plan_for_elder(elder_id, week_start.isoformat())
+            success_days = len(wk["days"])
+        except Exception as e:
+            import traceback
+            success_days = 0
+            print(f"    week FAILED for {spec['name']} starting {week_start}: "
+                  f"{type(e).__name__}: {e}")
+            traceback.print_exc()
         if success_days:
             plans_generated += 1
             if verbose:
-                print(f"    plans: {success_days}/7 days generated")
+                print(f"    plans: {success_days}/7 days generated (varied)")
 
     conn.close()
     print(f"\nDemo seed done: {created} new elders, "

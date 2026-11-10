@@ -1409,6 +1409,11 @@ def generate_plan_for_elder(elder_id, plan_date=None, avoid_penalty=None):
     plan_date = plan_date or dt.date.today().isoformat()
     conn = get_connection()
     try:
+        # When no penalty was supplied (e.g. the app's single-day "regenerate"
+        # button), derive one from the OTHER days already saved in the same
+        # Sun-Sat week so an ad-hoc daily plan still differs from its neighbours.
+        if avoid_penalty is None:
+            avoid_penalty = _week_avoid_from_saved(conn, elder_id, plan_date)
         ctx = load_elder_context(conn, elder_id)
         activities = load_activities(conn)
         exercises = load_exercises(conn)
@@ -1472,6 +1477,66 @@ MAX_WEEKLY_REPEATS = 3
 _WEEKLY_OVERUSE_PENALTY = 18.0
 
 
+def _week_avoid_from_saved(conn, elder_id, plan_date) -> dict | None:
+    """Build a day-to-day variety penalty for a single day's (re)generation,
+    read from the OTHER days already saved in the same Sun-Sat week. Lets the
+    app's per-day regenerate stay different from its neighbours without the
+    caller having to run the whole week. Meals and fixed external programs are
+    ignored so they still recur every day."""
+    from collections import Counter
+    try:
+        target = dt.date.fromisoformat(plan_date)
+    except (TypeError, ValueError):
+        return None
+    ws = week_start_sunday(target)
+    ti = (target - ws).days
+    avoid: dict[str, float] = {}
+    counts: Counter = Counter()
+    for i in range(7):
+        if i == ti:
+            continue
+        d = (ws + dt.timedelta(days=i)).isoformat()
+        rows = conn.execute(
+            "SELECT pi.activity_code AS code FROM daily_plans dp "
+            "JOIN plan_items pi ON pi.plan_id = dp.id "
+            "WHERE dp.elder_id = ? AND dp.plan_date = ?",
+            (elder_id, d),
+        ).fetchall()
+        codes = {r["code"] for r in rows
+                 if not str(r["code"]).startswith(("MEAL_", "EXT_"))}
+        pen = WEEKLY_VARIETY_PENALTY.get(abs(ti - i))
+        if pen:
+            for co in codes:
+                if pen > avoid.get(co, 0.0):
+                    avoid[co] = pen
+        counts.update(codes)
+    for co, n in counts.items():
+        if n >= MAX_WEEKLY_REPEATS:
+            avoid[co] = max(avoid.get(co, 0.0), _WEEKLY_OVERUSE_PENALTY)
+    return avoid or None
+
+
+def _clear_week_plans(elder_id, start_date: dt.date) -> None:
+    """Delete any saved plans for the 7-day week so a fresh weekly build starts
+    clean (keeps the day-0 auto-variety from seeing stale sibling days)."""
+    conn = get_connection()
+    try:
+        for i in range(7):
+            d = (start_date + dt.timedelta(days=i)).isoformat()
+            conn.execute(
+                "DELETE FROM plan_items WHERE plan_id IN "
+                "(SELECT id FROM daily_plans WHERE elder_id = ? AND plan_date = ?)",
+                (elder_id, d),
+            )
+            conn.execute(
+                "DELETE FROM daily_plans WHERE elder_id = ? AND plan_date = ?",
+                (elder_id, d),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def generate_weekly_plan_for_elder(
     elder_id: int,
     start_date: dt.date | str | None = None,
@@ -1484,6 +1549,9 @@ def generate_weekly_plan_for_elder(
         start_date = week_start_sunday(start_date)
 
     from collections import Counter
+    # Start clean so day 0 (which carries no explicit penalty) is not nudged by
+    # stale plans left over from an earlier run of the same week.
+    _clear_week_plans(elder_id, start_date)
     days = []
     day_codes: list[set[str]] = []   # scored activity/exercise codes placed per day
     week_counts: Counter = Counter()  # how many times each code appeared so far
